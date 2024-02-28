@@ -308,25 +308,26 @@ impl ExecutionEnvironment {
         let mut remaining_outer_lambdas = self.outer_lambdas;
         let mut remaining_applications = self.applications.len();
 
-        loop {
-            let mut next_instruction: u8 = 1;
-            while next_instruction < 0b01000000 {
-                if remaining_applications > 0 {
-                    remaining_applications -= 1;
-                    next_instruction <<= 1;
-                    next_instruction |= 1;
-                } else if remaining_outer_lambdas > 0 {
-                    remaining_outer_lambdas -= 1;
-                    next_instruction <<= 1;
-                } else {
-                    break;
-                }
-            }
-            if next_instruction == 1 {
-                break;
-            }
-            result.push(next_instruction | 0b10000000);
+        while remaining_outer_lambdas >= 6 {
+            remaining_outer_lambdas -= 6;
+            result.push(0b11000000);
         }
+        if remaining_outer_lambdas as usize + remaining_applications >= 6 {
+            remaining_applications -= 6 - remaining_outer_lambdas as usize;
+            result.push(0xFF ^ ((1 << remaining_outer_lambdas) - 1));
+            remaining_outer_lambdas = 0;
+
+            while remaining_applications >= 6 {
+                remaining_applications -= 6;
+                result.push(0xFF);
+            }
+        }
+        
+        if remaining_outer_lambdas > 0 || remaining_applications > 0 {
+            let sum = remaining_outer_lambdas as usize + remaining_applications;
+            result.push(0b10000000 | ((1 << (sum + 1)) - 1) ^ ((1 << remaining_outer_lambdas) - 1));
+        }
+
 
         result.extend_from_slice(&self.program);
         for application in self.applications.iter().rev() {
@@ -485,6 +486,17 @@ const ZERO: &[u8; 2] = &[0x84, 0x00];
 
 const ADD: &[u8] = &[0xF0, 0x03, 0x01, 0x87, 0x02, 0x01, 0x00];
 const MUL: &[u8] = &[0x9C, 0x01, 0x83, 0xF0, 0x03, 0x01, 0x87, 0x02, 0x01, 0x00, 0x00, 0x84, 0x00];
+const PRED: &[u8] = &[0xF8, 0x02, 0x8C, 0x00, 0x83, 0x01, 0x03, 0x82, 0x01, 0x82, 0x00];
+const SUB: &[u8] = &[0x9C, 0x00, 0xF8, 0x02, 0x8C, 0x00, 0x83, 0x01, 0x03, 0x82, 0x01, 0x82, 0x00, 0x01];
+
+const TUPLE: &[u8] = &[0xB8, 0x00, 0x02, 0x01];
+
+const TRUE: &[u8] = &[0x84, 0x01];
+const FALSE: &[u8] = &[0x84, 0x00];
+
+const BYTE0: &[u8] = &[0xFE, 0x8F, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00, 0x84, 0x00];
+
+// \p \f \x (p (\w w (f (w (\z.z))) )) ()
 
 fn number(n: u16) -> Program {
     if n == 0 { return Box::new(*ZERO); }
@@ -510,12 +522,28 @@ fn apply2(prog: &[u8], arg1: &[u8], arg2: &[u8]) -> Program {
     result.into_boxed_slice()
 }
 
+fn apply1(prog: &[u8], arg: &[u8]) -> Program {
+    let mut result = Vec::with_capacity(prog.len() + arg.len() + 1);
+    result.push(0x83);
+    result.extend_from_slice(prog);
+    result.extend_from_slice(arg);
+    result.into_boxed_slice()
+}
+
 fn add(arg1: &[u8], arg2: &[u8]) -> Program {
     apply2(ADD, arg1, arg2)
 }
 
+fn pred(arg: &[u8]) -> Program {
+    apply1(PRED, arg)
+}
+
 fn mul(arg1: &[u8], arg2: &[u8]) -> Program {
     apply2(MUL, arg1, arg2)
+}
+
+fn sub(arg1: &[u8], arg2: &[u8]) -> Program {
+    apply2(SUB, arg1, arg2)
 }
 
 fn main() {
@@ -541,7 +569,9 @@ fn main() {
     // let program = hex::decode(prog).unwrap().into_boxed_slice();
 
 
-    let program = add(&number(0), &number(10));
+    //let program = add(&number(0), &number(10));
+    //let program = sub(&number(7), &number(6));
+    let program = BYTE0.to_owned().into_boxed_slice();
 
     let simplified = simplify_debug(program);
     println!("{:02X?}", &simplified);
