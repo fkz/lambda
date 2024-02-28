@@ -11,7 +11,7 @@ struct Flags {
 impl Flags {
     fn make() -> Self {
         Flags {
-            flags: 0,
+            flags: 2,
             more_flags: Vec::new()
         }
     }
@@ -341,6 +341,58 @@ const VARIABLE_NAMES: [&str; 16] = [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "l", "m", "n", "o", "p", "q"
 ];
 
+fn verify(program: &Program) -> Result<u8, &str> {
+    let mut flags = Flags::make();
+    let mut highest_free_variable = 0;
+    let mut lambda_cont: u8 = 0;
+
+    for instruction in &**program {
+        let instruction = *instruction;
+
+        if instruction == 128 || instruction == 129 {
+            // Illegal instruction
+            return Result::Err("Illegal Instruction");
+        }
+        if is_var(instruction) {
+            if instruction >= lambda_cont {
+                highest_free_variable = u8::max(highest_free_variable, instruction - lambda_cont + 1);
+            }
+            loop {
+                let op = flags.pop_flag();
+                if op == Flags::LAMBDA_FLAG {
+                    lambda_cont -= 1;
+                } else if op == Flags::APP_FLAG_MIDDLE {
+                    break;
+                } else if op == Flags::APP_FLAG_END {
+
+                } else {
+                    return Result::Err("Finished, but instructions still coming");
+                }
+            }
+        } else {
+            if flags.is_empty() {
+                return Result::Err("Finished, but new instructions still coming")
+            }
+            let mut instruction = instruction & 0b01111111;
+            while instruction != 1 {
+                let op = instruction & 1;
+                instruction >>= 1;
+                if op == 0 {
+                    flags.put_lambda();
+                    lambda_cont += 1;
+                } else {
+                    flags.put_app();
+                }
+            }
+        }
+    }
+    if flags.is_empty() {
+        Result::Ok(highest_free_variable)
+    } else {
+        Result::Err("Still more data expected")
+    }
+}
+
 fn show(program: &Program) -> String {
     let mut result = String::new();
     let mut lambda_index = 0;
@@ -407,6 +459,7 @@ fn show_executor(executor: &ExecutionEnvironment) -> String {
 }
 
 fn simplify_debug(program: Program) -> Program {
+    println!("Verified: {:?}", verify(&program));
     println!("Start: {}", show(&program));
     let mut simplifier = SimplifyEnv::make(program);
     while simplifier.step() {
