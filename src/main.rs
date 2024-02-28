@@ -20,10 +20,6 @@ impl Flags {
         self.flags == 0 && self.more_flags.is_empty()
     }
 
-    fn check(&mut self) -> bool {
-        self.more_flags.len() == 0
-    }
-
     fn extend(&mut self, bits: usize) {
         if self.more_flags.len() == 0 {
             if self.flags & (0xF << 124) == 0 {
@@ -36,7 +32,7 @@ impl Flags {
             self.more_flags.push(0);
         }
         let mut index = self.more_flags.len()-1;
-        while (index >= 1) {
+        while index >= 1 {
             self.more_flags[index] <<= bits;
             let previous = self.more_flags[index - 1];
             self.more_flags[index] |= (((1 << bits) - 1) << (128 - bits) & previous) >> (128 - bits);
@@ -58,8 +54,8 @@ impl Flags {
                 self.more_flags[index] >>= bits;
                 index += 1;
             }
-            if self.more_flags[index] == 0 {
-                self.more_flags.remove(index);
+            if self.more_flags[self.more_flags.len()-1] == 0 {
+                self.more_flags.remove(self.more_flags.len()-1);
             }
         }
     }
@@ -164,7 +160,7 @@ fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program
 fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
     let mut result = Vec::new();
     let mut current_increase = increase;
-    let mut current_next_operator: u128 = 0;
+    let mut current_next_operator = Flags::make();
     let mut index = 1;
 
     let instruction = program[0];
@@ -177,11 +173,9 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
             let op = bits & 1;
             if op == 0 {
                 current_increase += 1;
-                current_next_operator <<= 2;
-                current_next_operator |= LAMBDA_FLAG as u128;
+                current_next_operator.put_lambda();
             } else {
-                current_next_operator <<= 4;
-                current_next_operator |= 14;
+                current_next_operator.put_app();
             }
             bits >>= 1;
         }
@@ -193,13 +187,12 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
         if instruction == current_increase {
             copy_over(&mut result, arg, current_increase);
             loop {
-                let current_flag = (current_next_operator & 3) as u8;
-                current_next_operator >>= 2;
-                if current_flag == LAMBDA_FLAG {
+                let current_flag = current_next_operator.pop_flag();
+                if current_flag == Flags::LAMBDA_FLAG {
                     current_increase -= 1;
-                } else if current_flag == APP_FLAG_MIDDLE {
+                } else if current_flag == Flags::APP_FLAG_MIDDLE {
                     break;
-                } else if current_flag == APP_FLAG_END {
+                } else if current_flag == Flags::APP_FLAG_END {
                     // do nothing
                 } else {
                     break 'outer;
@@ -212,13 +205,12 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
                 result.push(instruction);
             }
             loop {
-                let current_flag = (current_next_operator & 3) as u8;
-                current_next_operator >>= 2;
-                if current_flag == LAMBDA_FLAG {
+                let current_flag = current_next_operator.pop_flag();
+                if current_flag == Flags::LAMBDA_FLAG {
                     current_increase -= 1;
-                } else if current_flag == APP_FLAG_MIDDLE {
+                } else if current_flag == Flags::APP_FLAG_MIDDLE {
                     break;
-                } else if current_flag == APP_FLAG_END {
+                } else if current_flag == Flags::APP_FLAG_END {
                     // do nothing
                 } else {
                     break 'outer;
@@ -231,11 +223,9 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
                 let op = bits & 1;
                 if op == 0 {
                     current_increase += 1;
-                    current_next_operator <<= 2;
-                    current_next_operator |= LAMBDA_FLAG as u128;
+                    current_next_operator.put_lambda();
                 } else {
-                    current_next_operator <<= 4;
-                    current_next_operator |= 14;
+                    current_next_operator.put_app();
                 }
                 bits >>= 1;
             }
@@ -353,7 +343,7 @@ const VARIABLE_NAMES: [&str; 16] = [
 fn show(program: &Program) -> String {
     let mut result = String::new();
     let mut lambda_index = 0;
-    let mut flags: u128 = 0;
+    let mut flags = Flags::make();
 
     for instruction in &**program {
         let instruction = *instruction;
@@ -366,13 +356,12 @@ fn show(program: &Program) -> String {
             }
 
             loop {
-                let op = (flags & 3) as u8;
-                flags >>= 2;
-                if op == LAMBDA_FLAG {
+                let op = flags.pop_flag();
+                if op == Flags::LAMBDA_FLAG {
                     lambda_index -= 1;
-                } else if op == APP_FLAG_END {
+                } else if op == Flags::APP_FLAG_END {
                     result.push_str(")");
-                } else if op == APP_FLAG_MIDDLE {
+                } else if op == Flags::APP_FLAG_MIDDLE {
                     break;
                 } else {
                     result.push_str("|");
@@ -387,13 +376,11 @@ fn show(program: &Program) -> String {
 
                 if op == 1 {
                     //app
-                    flags <<= 4;
-                    flags |= 14;
+                    flags.put_app();
                     result.push_str("(");
                 } else {
                     //lambda
-                    flags <<= 2;
-                    flags |= LAMBDA_FLAG as u128;
+                    flags.put_lambda();
                     result.push_str("\\");
                     result.push_str(VARIABLE_NAMES[lambda_index as usize]);
                     lambda_index += 1;
@@ -402,7 +389,7 @@ fn show(program: &Program) -> String {
         }
     }
 
-    assert_eq!(flags, 0);
+    assert!(flags.is_empty());
     result
 }
 
@@ -420,45 +407,86 @@ fn show_executor(executor: &ExecutionEnvironment) -> String {
 
 fn simplify_debug(program: Program) -> Program {
     println!("Start: {}", show(&program));
-    let mut executor = ExecutionEnvironment::make(program);
-    while executor.step() {
-        println!("Step: {}", show_executor(&executor))
+    let mut simplifier = SimplifyEnv::make(program);
+    while simplifier.step() {
+        println!("Step: {}", show_executor(&simplifier.path[0].1));
+        for index in simplifier.path.as_slice()[1..].iter() {
+            println!("  {} {}", index.0, show_executor(&index.1))
+        }
     }
 
-    executor.applications = executor.applications.into_iter().map(|application| {
-        simplify(application)
-    }).collect();
+    simplifier.to_program()
+}
 
-    executor.to_program()
+struct SimplifyEnv {
+    path: Vec<(usize, ExecutionEnvironment)>
+}
+
+impl SimplifyEnv {
+    fn make(program: Program) -> Self {
+        SimplifyEnv {
+            path: vec![(0, ExecutionEnvironment::make(program))]
+        }
+    }
+
+    fn step(&mut self) -> bool {
+        let len = self.path.len();
+        let current = &mut self.path[len-1].1;
+
+        if current.step() {
+            return true;
+        }
+
+        if !current.applications.is_empty() {
+            let program = current.applications[0].clone();
+            self.path.push((0, ExecutionEnvironment::make(program))); // TODO Fix copying need of clone
+            return true;
+        }
+
+        loop {
+            let len = self.path.len();
+            if len == 1 {
+                return false;
+            }
+            let (index, current) = self.path.pop().unwrap();
+            self.path[len-2].1.applications[index] = current.to_program();
+            if self.path[len-2].1.applications.len() > index + 1 {
+                self.path.push((index + 1, ExecutionEnvironment::make(self.path[len-2].1.applications[index + 1].clone())));
+                return true;
+            }
+        }
+    }
+
+    fn to_program(&self) -> Program {
+        self.path[0].1.to_program()
+    }
 }
 
 fn simplify(program: Program) -> Program {
-    let mut executor = ExecutionEnvironment::make(program);
-    while executor.step() {}
+    let mut simplifier = SimplifyEnv::make(program);
+    
+    while simplifier.step() {}
 
-    executor.applications = executor.applications.into_iter().map(|application| {
-        simplify(application)
-    }).collect();
-
-    executor.to_program()
+    simplifier.to_program()
 }
 
 
-fn apply_1(prog: &str, arg: &str) -> String {
-    format!("83{prog}{arg}")
-}
+// fn apply_1(prog: &str, arg: &str) -> String {
+//     format!("83{prog}{arg}")
+// }
 
-fn apply_2(prog: &str, arg1: &str, arg2: &str) -> String {
-    format!("87{prog}{arg1}{arg2}")
-}
+// fn apply_2(prog: &str, arg1: &str, arg2: &str) -> String {
+//     format!("87{prog}{arg1}{arg2}")
+// }
 
 const ZERO: &[u8; 2] = &[0x84, 0x00];
-const ONE: &[u8] = &[0x8C, 0x01, 0x00];
-const TWO: &[u8] = &[0x8C, 0x01, 0x83, 0x01, 0x00];
+//const ONE: &[u8] = &[0x8C, 0x01, 0x00];
+//const TWO: &[u8] = &[0x8C, 0x01, 0x83, 0x01, 0x00];
 
 const ADD: &[u8] = &[0xF0, 0x03, 0x01, 0x87, 0x02, 0x01, 0x00];
+const MUL: &[u8] = &[0x9C, 0x01, 0x83, 0xF0, 0x03, 0x01, 0x87, 0x02, 0x01, 0x00, 0x00, 0x84, 0x00];
 
-fn number(n: u8) -> Program {
+fn number(n: u16) -> Program {
     if n == 0 { return Box::new(*ZERO); }
     let mut result = Vec::with_capacity(2*(n as usize)+1);
     result.push(0x8C);
@@ -486,6 +514,10 @@ fn add(arg1: &[u8], arg2: &[u8]) -> Program {
     apply2(ADD, arg1, arg2)
 }
 
+fn mul(arg1: &[u8], arg2: &[u8]) -> Program {
+    apply2(MUL, arg1, arg2)
+}
+
 fn main() {
     // let zero = "8400";
     // let one = "8C0100";
@@ -511,7 +543,7 @@ fn main() {
 
     let program = add(&number(0), &number(10));
 
-    let simplified = simplify(program);
+    let simplified = simplify_debug(program);
     println!("{:02X?}", &simplified);
     println!("Final result: {}", show(&simplified));
 }
@@ -521,7 +553,7 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
-    fn test_add(d1: u8, d2: u8) {
+    fn test_add(d1: u16, d2: u16) {
         let program = add(&number(d1), &number(d2));
 
         let simplified = simplify(program);
@@ -530,7 +562,16 @@ mod tests {
         assert!(simplified == compare)
     }
 
-    fn test_add_debug(d1: u8, d2: u8) {
+    fn test_mul(d1: u16, d2: u16) {
+        let program = mul(&number(d1), &number(d2));
+
+        let simplified = simplify(program);
+        let compare = number(d1 * d2);
+
+        assert!(simplified == compare)
+    }
+
+    fn test_add_debug(d1: u16, d2: u16) {
         let program = add(&number(d1), &number(d2));
 
         let simplified = simplify_debug(program);
@@ -551,10 +592,11 @@ mod tests {
         test_add(10, 10);
         test_add(20, 20);
         test_add(25, 25);
+        test_mul(100, 93);
     }
 
     #[test]
     fn test_some_add_debug() {
-        test_add_debug(64, 60);
+        test_add_debug(10, 20);
     }
 }
