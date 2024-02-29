@@ -40,7 +40,7 @@ fn apply2(prog: &[u8], arg1: &[u8], arg2: &[u8]) -> Program {
   result.into_boxed_slice()
 }
 
-fn apply1(prog: &[u8], arg: &[u8]) -> Program {
+pub fn apply1(prog: &[u8], arg: &[u8]) -> Program {
   let mut result = Vec::with_capacity(prog.len() + arg.len() + 1);
   result.push(0x83);
   result.extend_from_slice(prog);
