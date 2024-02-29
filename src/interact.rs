@@ -49,7 +49,9 @@ fn add_response<Res: Response>(program: Program, response: Res) -> Program {
     arg.push(0x8E);
     arg.push(0x00);
     arg.extend_from_slice(&response.to_program());
+    arg.push(0x83);
     arg.push(0x01);
+    arg.push(0x00);
     apply_free(&program, &arg.into_boxed_slice())
 }
 
@@ -88,6 +90,8 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(env: &m
 
         let mut executor = ExecutionEnvironment::make(program_state);
         while executor.step() {}
+
+        //println!("After simplification: {}", crate::program::show_executor(&executor));
 
         if executor.outer_lambdas != 1 || *executor.program != [0x00] || executor.applications.len() != 2 {
             env.panic(PanicInfo::InvalidState);

@@ -109,6 +109,7 @@ impl crate::interact::Environment<Request, Response> for Env {
   }
 
   fn request(&mut self, request: Request) {
+    //println!("req: {:?}", request);
       match request {
         Request::Exit => {
           println!("Succesfully exiting");
@@ -130,6 +131,7 @@ impl crate::interact::Environment<Request, Response> for Env {
         self.started = true;
         Some(Response::Start)
       } else if let Some(byte) = self.read {
+        //println!("response: ReadByte {}", byte);
         self.read = None;
         Some(Response::ReadByte(byte))
       } else {

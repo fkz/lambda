@@ -453,7 +453,7 @@ pub fn show(program: &Program) -> String {
   result
 }
 
-fn show_executor(executor: &ExecutionEnvironment) -> String {
+pub fn show_executor(executor: &ExecutionEnvironment) -> String {
   let mut result = show(&executor.program);
   if executor.outer_lambdas > 0 {
       result = format!("({})=>{}", executor.outer_lambdas-1, result);

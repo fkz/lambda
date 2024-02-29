@@ -8,5 +8,5 @@ use crate::interact::Environment;
 
 
 fn main() {
-    interact::interact(&mut simple_env::Env::make(),&example_interact_programs::repeat_print_h());
+    interact::interact(&mut simple_env::Env::make(),example_interact_programs::PRINT_READ);
 }
