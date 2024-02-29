@@ -3,7 +3,7 @@ use crate::program::Program;
 #[derive(Copy, Clone, Debug)]
 pub enum Response {
     Start,
-    ReadByte(u8)
+    ReadByte(u8),
 }
 
 impl crate::interact::Response for Response {
@@ -36,7 +36,7 @@ impl crate::interact::Response for Response {
 pub enum Request {
     Print(u8),
     Exit,
-    Read
+    Read,
 }
 
 impl crate::interact::Request for Request {
@@ -45,8 +45,8 @@ impl crate::interact::Request for Request {
             0x88 => match program[1] {
                 0x01 => Some(Request::Exit),
                 0x02 => Some(Request::Read),
-                _ => None
-            }
+                _ => None,
+            },
             0xF8 => match program[1] {
                 0xBF => match program[2] {
                     0x00 => {
@@ -54,22 +54,22 @@ impl crate::interact::Request for Request {
                         for bit in 0..8 {
                             let index = bit * 2 + 3;
                             if program[index] != 0x84 || program[index + 1] >= 2 {
-                                return None
+                                return None;
                             }
                             byte |= (program[index + 1] & 1) << bit;
                         }
                         Some(Request::Print(byte))
                     }
-                    _ => None
-                }
-                _ => None
-            }
-            _ => None
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
         }
     }
-  }
+}
 
-  impl Request {
+impl Request {
     pub fn to_program(&self) -> Program {
         match self {
             Request::Print(b) => {
@@ -88,67 +88,71 @@ impl crate::interact::Request for Request {
                 result.into_boxed_slice()
             }
             Request::Exit => [0x88, 0x01].to_vec().into_boxed_slice(),
-            Request::Read => [0x88, 0x02].to_vec().into_boxed_slice()
+            Request::Read => [0x88, 0x02].to_vec().into_boxed_slice(),
         }
     }
 }
 
-pub struct Env { started: bool, finished: bool, read: Option<u8> }
+pub struct Env {
+    started: bool,
+    finished: bool,
+    read: Option<u8>,
+}
 
 impl crate::interact::Environment<Request, Response> for Env {
-  fn finished(&self) -> bool {
-      self.finished
-  }
+    fn finished(&self) -> bool {
+        self.finished
+    }
 
-  fn make() -> Self {
-      Env {
-        started: false,
-        finished: false,
-        read: None
-      }
-  }
-
-  fn request(&mut self, request: Request) {
-    //println!("req: {:?}", request);
-      match request {
-        Request::Exit => {
-          println!("Succesfully exiting");
-          self.finished = true;
+    fn make() -> Self {
+        Env {
+            started: false,
+            finished: false,
+            read: None,
         }
-        Request::Print(byte) => {
-          print!("{}", char::from_u32(byte as u32).unwrap());
-        }
-        Request::Read => {
-          let mut buffer: [u8; 1] = [0x00];
-          std::io::Read::read(&mut std::io::stdin(), &mut buffer).unwrap();
-          self.read = Some(buffer[0]);
-        }
-      }
-  }
+    }
 
-  fn next_response(&mut self) -> Option<Response> {
-      if !self.started {
-        self.started = true;
-        Some(Response::Start)
-      } else if let Some(byte) = self.read {
-        //println!("response: ReadByte {}", byte);
-        self.read = None;
-        Some(Response::ReadByte(byte))
-      } else {
-        None
-      }
-  }
+    fn request(&mut self, request: Request) {
+        //println!("req: {:?}", request);
+        match request {
+            Request::Exit => {
+                println!("Succesfully exiting");
+                self.finished = true;
+            }
+            Request::Print(byte) => {
+                print!("{}", char::from_u32(byte as u32).unwrap());
+            }
+            Request::Read => {
+                let mut buffer: [u8; 1] = [0x00];
+                std::io::Read::read(&mut std::io::stdin(), &mut buffer).unwrap();
+                self.read = Some(buffer[0]);
+            }
+        }
+    }
 
-  fn panic(&mut self, panic_info: crate::interact::PanicInfo) {
-      self.finished = true;
-      println!("panic {:?}", panic_info);
-  }
+    fn next_response(&mut self) -> Option<Response> {
+        if !self.started {
+            self.started = true;
+            Some(Response::Start)
+        } else if let Some(byte) = self.read {
+            //println!("response: ReadByte {}", byte);
+            self.read = None;
+            Some(Response::ReadByte(byte))
+        } else {
+            None
+        }
+    }
+
+    fn panic(&mut self, panic_info: crate::interact::PanicInfo) {
+        self.finished = true;
+        println!("panic {:?}", panic_info);
+    }
 }
 
 #[derive(Clone)]
 pub enum RequestOrResponse {
     Request(Request),
-    Response(Response)
+    Response(Response),
 }
 
 pub struct MockEnv {
@@ -164,7 +168,7 @@ impl crate::interact::Environment<Request, Response> for MockEnv {
     fn make() -> Self {
         MockEnv {
             values: Vec::new(),
-            failed: None
+            failed: None,
         }
     }
 
@@ -178,17 +182,26 @@ impl crate::interact::Environment<Request, Response> for MockEnv {
                     None
                 }
             }
-            Some(_) => None
+            Some(_) => None,
         }
     }
 
     fn request(&mut self, request: Request) {
         match self.values.pop() {
             None => self.failed = Some(format!("Request {:?} received at end", request)),
-            Some(RequestOrResponse::Response(resp)) => 
-                self.failed = Some(format!("Request {:?} received when response {:?} was expected", request, resp)),
+            Some(RequestOrResponse::Response(resp)) => {
+                self.failed = Some(format!(
+                    "Request {:?} received when response {:?} was expected",
+                    request, resp
+                ))
+            }
             Some(RequestOrResponse::Request(req)) if req == request => (),
-            Some(RequestOrResponse::Request(req)) => self.failed = Some(format!("Request {:?} expected, but got Request {:?}", req, request))
+            Some(RequestOrResponse::Request(req)) => {
+                self.failed = Some(format!(
+                    "Request {:?} expected, but got Request {:?}",
+                    req, request
+                ))
+            }
         }
     }
 
@@ -203,7 +216,7 @@ impl MockEnv {
         values.reverse();
         Self {
             values: values,
-            failed: None
+            failed: None,
         }
     }
 
