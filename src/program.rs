@@ -343,6 +343,58 @@ impl ExecutionEnvironment {
   }
 }
 
+pub struct SimplifyEnv {
+    path: Vec<(usize, ExecutionEnvironment)>
+}
+  
+impl SimplifyEnv {
+    pub fn make(program: Program) -> Self {
+        SimplifyEnv {
+            path: vec![(0, ExecutionEnvironment::make(program))]
+        }
+    }
+  
+    pub fn step(&mut self) -> bool {
+        let len = self.path.len();
+        let current = &mut self.path[len-1].1;
+  
+        if current.step() {
+            return true;
+        }
+  
+        if !current.applications.is_empty() {
+            let program = current.applications[0].clone();
+            self.path.push((0, ExecutionEnvironment::make(program))); // TODO Fix copying need of clone
+            return true;
+        }
+  
+        loop {
+            let len = self.path.len();
+            if len == 1 {
+                return false;
+            }
+            let (index, current) = self.path.pop().unwrap();
+            self.path[len-2].1.applications[index] = current.to_program();
+            if self.path[len-2].1.applications.len() > index + 1 {
+                self.path.push((index + 1, ExecutionEnvironment::make(self.path[len-2].1.applications[index + 1].clone())));
+                return true;
+            }
+        }
+    }
+  
+    pub fn to_program(&self) -> Program {
+        self.path[0].1.to_program()
+    }
+}
+  
+pub fn simplify(program: Program) -> Program {
+    let mut simplifier = SimplifyEnv::make(program);
+    
+    while simplifier.step() {}
+  
+    simplifier.to_program()
+}
+
 
 pub fn verify<'a>(program: &'a [u8]) -> Result<u8, &'static str> {
   let mut flags = Flags::make();
@@ -479,54 +531,3 @@ pub fn simplify_debug(program: Program) -> Program {
   simplifier.to_program()
 }
 
-pub struct SimplifyEnv {
-  path: Vec<(usize, ExecutionEnvironment)>
-}
-
-impl SimplifyEnv {
-  pub fn make(program: Program) -> Self {
-      SimplifyEnv {
-          path: vec![(0, ExecutionEnvironment::make(program))]
-      }
-  }
-
-  pub fn step(&mut self) -> bool {
-      let len = self.path.len();
-      let current = &mut self.path[len-1].1;
-
-      if current.step() {
-          return true;
-      }
-
-      if !current.applications.is_empty() {
-          let program = current.applications[0].clone();
-          self.path.push((0, ExecutionEnvironment::make(program))); // TODO Fix copying need of clone
-          return true;
-      }
-
-      loop {
-          let len = self.path.len();
-          if len == 1 {
-              return false;
-          }
-          let (index, current) = self.path.pop().unwrap();
-          self.path[len-2].1.applications[index] = current.to_program();
-          if self.path[len-2].1.applications.len() > index + 1 {
-              self.path.push((index + 1, ExecutionEnvironment::make(self.path[len-2].1.applications[index + 1].clone())));
-              return true;
-          }
-      }
-  }
-
-  pub fn to_program(&self) -> Program {
-      self.path[0].1.to_program()
-  }
-}
-
-pub fn simplify(program: Program) -> Program {
-  let mut simplifier = SimplifyEnv::make(program);
-  
-  while simplifier.step() {}
-
-  simplifier.to_program()
-}
