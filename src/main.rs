@@ -4,7 +4,9 @@ mod example_programs;
 pub mod example_interact_programs;
 mod simple_env;
 
+use crate::interact::Environment;
+
 
 fn main() {
-    let _: simple_env::Env = interact::interact(&example_interact_programs::hello_world());
+    interact::interact(&mut simple_env::Env::make(),&example_interact_programs::hello_world());
 }

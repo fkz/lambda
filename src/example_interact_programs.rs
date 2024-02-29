@@ -24,3 +24,27 @@ pub fn hello_world() -> Program {
   hello_world.into_boxed_slice()
 }
 
+#[cfg(test)]
+mod tests {
+  use crate::interact::interact;
+use crate::simple_env::MockEnv;
+  use crate::simple_env::RequestOrResponse::{Request, Response};
+  use crate::simple_env::Request::*;
+  use crate::simple_env::Response::*;
+
+  #[test]
+  fn test_hello_world() {
+    let mut env = MockEnv::make(&[
+      Response(Start),
+      Request(Print('H' as u8)), 
+      Request(Print('e' as u8)),
+      Request(Print('l' as u8)),
+      Request(Exit)
+    ]);
+
+    interact(&mut env, &super::hello_world());
+
+    assert_eq!(env.failed(), None)
+  }
+
+}

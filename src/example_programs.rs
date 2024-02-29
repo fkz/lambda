@@ -1,4 +1,4 @@
-use crate::program::Program; //, simplify, simplify_debug};
+use crate::program::Program;
 
 const ZERO: &[u8; 2] = &[0x84, 0x00];
 const ONE: &[u8] = &[0x8C, 0x01, 0x00];
@@ -70,23 +70,20 @@ fn sub(arg1: &[u8], arg2: &[u8]) -> Program {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use crate::program::{simplify, simplify_debug};
 
-    fn test_add(d1: u16, d2: u16) {
-        let program = add(&number(d1), &number(d2));
 
-        let simplified = simplify(program);
-        let compare = number(d1 + d2);
+    fn test_op(op: &'static [u8], f: Box<dyn Fn(u16, u16) -> u16>) -> Box<dyn Fn(u16, u16)> {
+      Box::new(move | arg1, arg2 | {
+        let program = apply2(op, &number(arg1), &number(arg2));
 
-        assert!(simplified == compare)
-    }
-
-    fn test_mul(d1: u16, d2: u16) {
-        let program = mul(&number(d1), &number(d2));
+        assert_eq!(crate::program::verify(&program), Ok(0));
 
         let simplified = simplify(program);
-        let compare = number(d1 * d2);
+        let compare = number(f(arg1, arg2));
 
         assert!(simplified == compare)
+      })
     }
 
     fn test_add_debug(d1: u16, d2: u16) {
@@ -101,6 +98,8 @@ mod tests {
 
     #[test]
     fn test_some_adds() {
+        let test_add = test_op(ADD, Box::new(|x, y| x + y));
+        let test_mul = test_op(MUL, Box::new(|x, y| x * y));
         test_add(0, 0);
         test_add(0, 1);
         test_add(0, 2);

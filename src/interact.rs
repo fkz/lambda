@@ -60,18 +60,16 @@ fn lambda(program: &[u8]) -> Program {
     result.into_boxed_slice()
 }
 
-pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(program: &[u8]) -> Env {
-    let mut env = Env::make();
-
+pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(env: &mut Env, program: &[u8]) {
     match crate::program::verify(program) {
         Result::Err(err) => {
             env.panic(PanicInfo::InvalidProgram(err));
-            return env;
+            return
         }
         Ok(0) => {}
         Ok(free_vars) => {
             env.panic(PanicInfo::ProgramContainsFreeVariables(free_vars));
-            return env;
+            return
         }
     }
 
@@ -85,7 +83,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(program
 
         if let Result::Err(err) = verify(&program_state) {
             println!("Error while verifying program correctness: {}", err);
-            return env;
+            return
         }
 
         let mut executor = ExecutionEnvironment::make(program_state);
@@ -93,7 +91,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(program
 
         if executor.outer_lambdas != 1 || *executor.program != [0x00] || executor.applications.len() != 2 {
             env.panic(PanicInfo::InvalidState);
-            return env;
+            return
         }
 
         let request = simplify(executor.applications.remove(1));
@@ -102,12 +100,12 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(program
             Some(req) => env.request(req),
             None => {
                 env.panic(PanicInfo::InvalidRequest);
-                return env;
+                return
             }
         }
 
         if env.finished() {
-            return env;
+            return
         }
 
         program_state = lambda(&executor.applications.remove(0));

@@ -1,6 +1,6 @@
 use crate::program::Program;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Response {
     Start,
     ReadByte(u8)
@@ -32,6 +32,7 @@ impl crate::interact::Response for Response {
     }
 }
 
+#[derive(PartialEq, Clone, Debug)]
 pub enum Request {
     Print(u8),
     Exit,
@@ -140,4 +141,71 @@ impl crate::interact::Environment<Request, Response> for Env {
       self.finished = true;
       println!("panic {:?}", panic_info);
   }
+}
+
+#[derive(Clone)]
+pub enum RequestOrResponse {
+    Request(Request),
+    Response(Response)
+}
+
+pub struct MockEnv {
+    values: Vec<RequestOrResponse>,
+    failed: Option<String>,
+}
+
+impl crate::interact::Environment<Request, Response> for MockEnv {
+    fn finished(&self) -> bool {
+        self.values.is_empty() || self.failed.is_some()
+    }
+
+    fn make() -> Self {
+        MockEnv {
+            values: Vec::new(),
+            failed: None
+        }
+    }
+
+    fn next_response(&mut self) -> Option<Response> {
+        match self.values.last() {
+            None => None,
+            Some(RequestOrResponse::Response(_)) => {
+                if let Some(RequestOrResponse::Response(resp)) = self.values.pop() {
+                    Some(resp)
+                } else {
+                    None
+                }
+            }
+            Some(_) => None
+        }
+    }
+
+    fn request(&mut self, request: Request) {
+        match self.values.pop() {
+            None => self.failed = Some(format!("Request {:?} received at end", request)),
+            Some(RequestOrResponse::Response(resp)) => 
+                self.failed = Some(format!("Request {:?} received when response {:?} was expected", request, resp)),
+            Some(RequestOrResponse::Request(req)) if req == request => (),
+            Some(RequestOrResponse::Request(req)) => self.failed = Some(format!("Request {:?} expected, but got Request {:?}", req, request))
+        }
+    }
+
+    fn panic(&mut self, panic_info: crate::interact::PanicInfo) {
+        self.failed = Some(format!("Panicked with {:?}", panic_info));
+    }
+}
+
+impl MockEnv {
+    pub fn make(list: &[RequestOrResponse]) -> Self {
+        let mut values = list.to_vec();
+        values.reverse();
+        Self {
+            values: values,
+            failed: None
+        }
+    }
+
+    pub fn failed(&self) -> Option<String> {
+        self.failed.clone()
+    }
 }
