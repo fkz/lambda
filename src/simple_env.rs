@@ -118,7 +118,7 @@ impl crate::interact::Environment<Request, Response> for Env {
         }
         Request::Read => {
           let mut buffer: [u8; 1] = [0x00];
-          std::io::Read::read(&mut std::io::stdin(), &mut buffer);
+          std::io::Read::read(&mut std::io::stdin(), &mut buffer).unwrap();
           self.read = Some(buffer[0]);
         }
       }
@@ -137,6 +137,7 @@ impl crate::interact::Environment<Request, Response> for Env {
   }
 
   fn panic(&mut self, panic_info: crate::interact::PanicInfo) {
+      self.finished = true;
       println!("panic {:?}", panic_info);
   }
 }
