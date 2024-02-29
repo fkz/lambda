@@ -1,0 +1,17 @@
+// basic operations
+exit=  88 01
+read=  88 00
+
+exit succesful= 9c 00 exit 82 00
+
+print @= f8bf00 8400 8400 8400 8400 8400 8400 8401 8400
+
+repeat= e8860183000086018300008e010300
+
+// 83 repeat  print @
+
+print_read= 8c019c028701 print @ c0e0FF83000a090807060504038702880200
+
+//print_read
+
+b3 01 83 01 00 85 00 82 00 82 00
