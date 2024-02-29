@@ -1,3 +1,4 @@
+use std::io::Read;
 
 type Instruction = u8;
 type Program = Box<[Instruction]>;
@@ -191,11 +192,15 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
                 if current_flag == Flags::LAMBDA_FLAG {
                     current_increase -= 1;
                 } else if current_flag == Flags::APP_FLAG_MIDDLE {
-                    break;
+                    if current_next_operator.is_empty() {
+                        break 'outer;
+                    } else {
+                        break;
+                    }
                 } else if current_flag == Flags::APP_FLAG_END {
                     // do nothing
                 } else {
-                    break 'outer;
+                    panic!("Read invalid flag");
                 }
             }
         } else if is_var(instruction) {
@@ -209,11 +214,15 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
                 if current_flag == Flags::LAMBDA_FLAG {
                     current_increase -= 1;
                 } else if current_flag == Flags::APP_FLAG_MIDDLE {
-                    break;
+                    if current_next_operator.is_empty() {
+                        break 'outer;
+                    } else {
+                        break;
+                    }
                 } else if current_flag == Flags::APP_FLAG_END {
                     // do nothing
                 } else {
-                    break 'outer;
+                    panic!("Read invalid flag");
                 }
             }
         } else {
@@ -583,6 +592,14 @@ fn apply1(prog: &[u8], arg: &[u8]) -> Program {
     result.into_boxed_slice()
 }
 
+fn apply_free(prog: &[u8], arg: &[u8]) -> Program {
+    let mut result = Vec::with_capacity(prog.len() + arg.len() + 1);
+    result.push(0x85);
+    result.extend_from_slice(prog);
+    result.extend_from_slice(arg);
+    result.into_boxed_slice()
+}
+
 fn add(arg1: &[u8], arg2: &[u8]) -> Program {
     apply2(ADD, arg1, arg2)
 }
@@ -599,7 +616,195 @@ fn sub(arg1: &[u8], arg2: &[u8]) -> Program {
     apply2(SUB, arg1, arg2)
 }
 
+
+#[derive(Copy, Clone)]
+enum Response {
+    Start,
+    ReadByte(u8)
+}
+
+impl Response {
+    fn to_program(self) -> Program {
+        match self {
+            Response::Start => vec![0x84, 0x01].into_boxed_slice(),
+            Response::ReadByte(byte) => {
+                let mut result = Vec::new();
+                result.push(0xFC);
+                result.push(0x9F);
+                result.push(0x00);
+
+                for i in 0..8 {
+                    let bit = byte & (1 << i);
+                    result.push(0x84);
+                    if bit == 0 {
+                        result.push(0x00);
+                    } else {
+                        result.push(0x01);
+                    }
+                }
+
+                result.into_boxed_slice()
+            }
+        }
+    }
+}
+
+enum Request {
+    Print(u8),
+    Exit,
+    Read
+}
+
+impl Request {
+    fn from_program(program: &Program) -> Option<Request> {
+        match program[0] {
+            0x88 => match program[1] {
+                0x01 => Some(Request::Exit),
+                0x02 => Some(Request::Read),
+                _ => None
+            }
+            0xF8 => match program[1] {
+                0xBF => match program[2] {
+                    0x00 => {
+                        let mut byte = 0;
+                        for bit in 0..8 {
+                            let index = bit * 2 + 3;
+                            if program[index] != 0x84 || program[index + 1] >= 2 {
+                                return None
+                            }
+                            byte |= (program[index + 1] & 1) << bit;
+                        }
+                        Some(Request::Print(byte))
+                    }
+                    _ => None
+                }
+                _ => None
+            }
+            _ => None
+        }
+    }
+
+    fn to_program(&self) -> Program {
+        match self {
+            Request::Print(b) => {
+                let mut result = Vec::new();
+                result.push(0xF8);
+                result.push(0xBF);
+                result.push(0x00);
+                for index in 0..8 {
+                    result.push(0x84);
+                    if b & (1 << index) == 0 {
+                        result.push(0x00);
+                    } else {
+                        result.push(0x01);
+                    }
+                }
+                result.into_boxed_slice()
+            }
+            Request::Exit => [0x88, 0x01].to_vec().into_boxed_slice(),
+            Request::Read => [0x88, 0x02].to_vec().into_boxed_slice()
+        }
+    }
+}
+
+fn add_response(program: Program, response: Response) -> Program {
+    let mut arg = Vec::new();
+    arg.push(0x8E);
+    arg.push(0x00);
+    arg.extend_from_slice(&response.to_program());
+    arg.push(0x01);
+    apply_free(&program, &arg.into_boxed_slice())
+}
+
+fn lambda(program: &[u8]) -> Program {
+    let mut result = Vec::new();
+    result.push(0x82);
+    result.extend_from_slice(program);
+    result.into_boxed_slice()
+}
+
+fn interact(program: &[u8]) {
+    let stream = &[0x86, 0x01, 0x00];
+    let mut program_state = apply1(program, stream);
+    let mut next_response = Some(Response::Start);
+
+    loop {
+        if let Some(resp) = next_response {
+            program_state = add_response(program_state, resp);
+            next_response = None;
+        };
+
+
+        if let Result::Err(err) = verify(&program_state) {
+            println!("Error while verifying program correctness: {}", err);
+            return;
+        }
+
+        let mut executor = ExecutionEnvironment::make(program_state);
+        while executor.step() {}
+        assert!(executor.outer_lambdas == 1);
+        assert!(executor.program == Box::new([0x00]));
+        assert!(executor.applications.len() == 2);
+
+        let mut request_simplifier = SimplifyEnv::make(executor.applications.remove(1));
+        while request_simplifier.step() {}
+        let request = request_simplifier.to_program();
+
+        match Request::from_program(&request) {
+            Some(Request::Exit) => {
+                println!("Succesfully exitted");
+                return;
+            }
+            Some(Request::Print(b)) => {
+                print!("{}", char::from_u32(b as u32).unwrap())
+            }
+            Some(Request::Read) => {
+                println!("Read");
+                let mut buffer: [u8; 1] = [0; 1];
+                std::io::stdin().read(&mut buffer).unwrap();
+                next_response = Some(Response::ReadByte(buffer[0]));
+            }
+            None => {
+                println!("Error in program execution");
+                return;
+            }
+        }
+
+        program_state = lambda(&executor.applications.remove(0));
+    }
+}
+
+
 fn main() {
+    let program = [0x9C, 0x00, 0x88, 0x01, 0x82, 0x00];
+
+    let mut hello_world: Vec<u8> = Vec::new();
+    hello_world.push(0x84);
+    for char in "Hello World\n".chars().into_iter() {
+        let byte = char as u8;
+        let as_prog: Box<[u8]> = Request::Print(byte).to_program();
+        hello_world.push(0x87);
+        hello_world.push(0x00);
+        hello_world.extend_from_slice(&as_prog);
+    }
+    hello_world.push(0x87);
+    hello_world.push(0x00);
+    hello_world.push(0x88);
+    hello_world.push(0x01);
+    hello_world.push(0x82);
+    hello_world.push(0x00);
+
+    // 
+    //let echo = [0x86, 0x00, 0x9C, 0x01, 0x82, 0x00, 0x84, 0x00, 0x88, 0x01, 0x82, 0x00];
+    let exit_after_start = [0x86, 0x00, 0x9C, 0x01, 0x8E, 0x00, 0x88, 0x01, 0x82, 0x00, 0x82, 0x00];
+    let exit_after_read = [0x9C, 0x00, 0x88, 0x02, 0x87, 0x00, 0x88, 0x01, 0x82, 0x00];
+
+// x0 = (\x. x (\l\r. l) I2) (\y.\z. y) 
+
+    interact(&exit_after_read);
+}
+
+fn mainX() {
     // let zero = "8400";
     // let one = "8C0100";
     // let two = "8C01830100";
