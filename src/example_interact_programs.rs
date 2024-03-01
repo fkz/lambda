@@ -73,7 +73,7 @@ mod tests {
             Request(Exit),
         ]);
 
-        interact(&mut env, &super::hello_world(), false);
+        interact(&mut env, &super::hello_world(), false, false);
 
         assert_eq!(env.failed(), None)
     }

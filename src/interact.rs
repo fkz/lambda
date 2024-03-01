@@ -69,6 +69,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
     env: &mut Env,
     program: &[u8],
     by_value: bool,
+    show_steps: bool,
 ) {
     match crate::program::verify(program) {
         Result::Err(err) => {
@@ -95,7 +96,9 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
             return;
         }
 
-        println!("Current state: {}", crate::program::show(&program_state));
+        if show_steps {
+            println!("Current state: {}", crate::program::show(&program_state));
+        }
 
         if !by_value {
             let mut executor = ExecutionEnvironment::make(program_state);
@@ -122,9 +125,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
             program_state = lambda(&executor.applications.remove(0));
         } else {
             let mut executor = ExecutionEnvironmentByValue::make(program_state);
-            while executor.step() {
-                println!("Step: {}", show_executor_by_value(&executor))
-            }
+            while executor.step() {}
 
             assert_eq!(executor.before_programs.len(), 1);
             assert!(executor.before_programs[0].is_empty());

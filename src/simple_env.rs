@@ -42,7 +42,6 @@ pub enum Request {
 
 impl crate::interact::Request for Request {
     fn from_program(program: &Program) -> Option<Request> {
-        println!("Request: {}", hex::encode(program));
         match program[0] {
             0x88 => match program[1] {
                 0x00 => Some(Request::PrintPing),
@@ -117,7 +116,6 @@ impl crate::interact::Environment<Request, Response> for Env {
     }
 
     fn request(&mut self, request: Request) {
-        //println!("req: {:?}", request);
         match request {
             Request::Exit => {
                 println!("Succesfully exiting");
