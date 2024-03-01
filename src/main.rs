@@ -2,12 +2,12 @@ pub mod example_interact_programs;
 mod example_programs;
 mod human_readable;
 mod interact;
+mod pretty;
 mod program;
 mod simple_env;
-mod pretty;
 
 use pretty::Pretty;
-use program::{Program, simplify_generic, simplify_debug};
+use program::{simplify_debug, simplify_generic, Program};
 use simple_env::Env;
 
 use crate::{interact::Environment, program::show};
@@ -46,24 +46,32 @@ fn main() {
         match flag.as_str() {
             "--show-steps" => show_steps = true,
             "--interactive" => interactive = Some(Env::make()),
-            "--number" => { prettify = Some(pretty::Number); show_program = false; },
+            "--number" => {
+                prettify = Some(pretty::Number);
+                show_program = false;
+            }
             "--show-program" => show_program = true,
             "--show-hex" => show_hex = true,
             "--by-value" => by_value = true,
-            other => panic!("Unknown flag {}", other)
+            other => panic!("Unknown flag {}", other),
         }
         index += 1;
     }
-    
+
     let path = std::env::args().nth(index).expect("no path given");
 
     let remaining = std::env::args().len() - index - 1;
     let mut applications = Vec::new();
     if remaining > 0 {
-        let prettify = prettify.as_ref().expect("when using arguments, use --number to parse them");
+        let prettify = prettify
+            .as_ref()
+            .expect("when using arguments, use --number to parse them");
         while (applications.len() < remaining) {
-            let arg = std::env::args().nth(index + applications.len() + 1).unwrap();
-            let program = prettify.string_to_program(&arg)
+            let arg = std::env::args()
+                .nth(index + applications.len() + 1)
+                .unwrap();
+            let program = prettify
+                .string_to_program(&arg)
                 .expect(format!("Expected {}, but got {}", prettify.name(), arg).as_str());
             applications.push(program);
         }
@@ -80,9 +88,7 @@ fn main() {
         if show_program {
             println!("Input: {}", show(&program));
         }
-        let simplified = {
-            simplify_generic(program, show_steps, by_value)            
-        };
+        let simplified = { simplify_generic(program, show_steps, by_value) };
         if show_program {
             println!("Simplified: {}", show(&simplified));
         }
@@ -90,7 +96,8 @@ fn main() {
             println!("Simplified: {}", hex::encode(&simplified));
         }
         if let Some(p) = prettify {
-            let result = p.program_to_string(&simplified)
+            let result = p
+                .program_to_string(&simplified)
                 .expect(format!("Couldn't parse result of program as {}", p.name()).as_str());
             println!("Result: {}", result);
         }

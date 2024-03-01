@@ -26,7 +26,7 @@ where
 #[derive(Debug)]
 pub enum PanicInfo {
     InvalidProgram(&'static str),
-    ProgramContainsFreeVariables(u8),
+    ProgramContainsFreeVariables(u64),
     InvalidRequest,
     InvalidState,
 }

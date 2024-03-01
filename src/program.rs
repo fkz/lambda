@@ -95,20 +95,54 @@ impl Flags {
     const APP_FLAG_END: u8 = 3;
 }
 
-fn copy_over(target: &mut Vec<u8>, source: &Program, increase: u8) {
-    let mut lambda_index = 0;
+struct Var {
+    value: u64,
+}
+
+impl Var {
+    fn make() -> Self {
+        Var { value: 0 }
+    }
+    fn build(&mut self, instruction: u8) -> Option<u64> {
+        if !is_var(instruction) {
+            return None;
+        }
+        self.value <<= 6;
+        self.value |= (instruction & 0b00111111) as u64;
+        if instruction & 0b01000000 == 0 {
+            Some(std::mem::replace(&mut self.value, 0))
+        } else {
+            None
+        }
+    }
+
+    fn instrcutions(out: &mut Vec<u8>, var: u64) {
+        let mut other = Vec::new();
+        let mut v = var;
+        let last = (v & 0x63) as u8;
+        v >>= 6;
+        while (v & !63) != 0 {
+            other.push(((v & 63) | 64) as u8);
+            v >>= 6;
+        }
+        out.extend(other.iter().rev());
+        out.push(last);
+    }
+}
+
+fn copy_over(target: &mut Vec<u8>, source: &Program, increase: u64) {
+    let mut lambda_index: u64 = 0;
     let mut flags = Flags::make();
+
+    let mut current_var = Var::make();
 
     for instruction in &**source {
         let instruction = *instruction;
-        if is_var(instruction) {
-            if instruction >= lambda_index {
-                if instruction + increase >= 128 {
-                    panic!("Only variables up to 128 are supported, {} {}", instruction, increase);
-                }
-                target.push(instruction + increase);
+        if let Some(var) = current_var.build(instruction) {
+            if var >= lambda_index {
+                Var::instrcutions(target, var + increase);
             } else {
-                target.push(instruction);
+                Var::instrcutions(target, var);
             }
 
             loop {
@@ -122,7 +156,7 @@ fn copy_over(target: &mut Vec<u8>, source: &Program, increase: u8) {
                     break;
                 }
             }
-        } else {
+        } else if !is_var(instruction) {
             target.push(instruction);
             let mut instruction = instruction & 0b01111111;
             while instruction != 1 {
@@ -160,7 +194,7 @@ fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program
     (program[index..]).into()
 }
 
-fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
+fn apply(program: &Program, arg: &Program, increase: u64) -> Program {
     let mut result = Vec::new();
     let mut current_increase = increase;
     let mut current_next_operator = Flags::make();
@@ -187,44 +221,55 @@ fn apply(program: &Program, arg: &Program, increase: u8) -> Program {
     'outer: loop {
         let instruction = program[index];
 
-        if instruction == current_increase {
-            copy_over(&mut result, arg, current_increase);
-            loop {
-                let current_flag = current_next_operator.pop_flag();
-                if current_flag == Flags::LAMBDA_FLAG {
-                    current_increase -= 1;
-                } else if current_flag == Flags::APP_FLAG_MIDDLE {
-                    if current_next_operator.is_empty() {
-                        break 'outer;
-                    } else {
-                        break;
+        if is_var(instruction) {
+            let var = {
+                let mut v = Var::make();
+                loop {
+                    if let Some(r) = v.build(program[index]) {
+                        break r;
                     }
-                } else if current_flag == Flags::APP_FLAG_END {
-                    // do nothing
-                } else {
-                    panic!("Read invalid flag");
+                    index += 1;
                 }
-            }
-        } else if is_var(instruction) {
-            if instruction > current_increase {
-                result.push(instruction - 1);
-            } else if instruction < current_increase {
-                result.push(instruction);
-            }
-            loop {
-                let current_flag = current_next_operator.pop_flag();
-                if current_flag == Flags::LAMBDA_FLAG {
-                    current_increase -= 1;
-                } else if current_flag == Flags::APP_FLAG_MIDDLE {
-                    if current_next_operator.is_empty() {
-                        break 'outer;
+            };
+            if var == current_increase {
+                copy_over(&mut result, arg, current_increase);
+                loop {
+                    let current_flag = current_next_operator.pop_flag();
+                    if current_flag == Flags::LAMBDA_FLAG {
+                        current_increase -= 1;
+                    } else if current_flag == Flags::APP_FLAG_MIDDLE {
+                        if current_next_operator.is_empty() {
+                            break 'outer;
+                        } else {
+                            break;
+                        }
+                    } else if current_flag == Flags::APP_FLAG_END {
+                        // do nothing
                     } else {
-                        break;
+                        panic!("Read invalid flag");
                     }
-                } else if current_flag == Flags::APP_FLAG_END {
-                    // do nothing
-                } else {
-                    panic!("Read invalid flag");
+                }
+            } else {
+                if var > current_increase {
+                    Var::instrcutions(&mut result, var - 1);
+                } else if var < current_increase {
+                    Var::instrcutions(&mut result, var);
+                }
+                loop {
+                    let current_flag = current_next_operator.pop_flag();
+                    if current_flag == Flags::LAMBDA_FLAG {
+                        current_increase -= 1;
+                    } else if current_flag == Flags::APP_FLAG_MIDDLE {
+                        if current_next_operator.is_empty() {
+                            break 'outer;
+                        } else {
+                            break;
+                        }
+                    } else if current_flag == Flags::APP_FLAG_END {
+                        // do nothing
+                    } else {
+                        panic!("Read invalid flag");
+                    }
                 }
             }
         } else {
@@ -380,7 +425,6 @@ impl ExecutionEnvironmentByValue {
         }
         result.into_boxed_slice()
     }
-    
 
     pub fn step(&mut self) -> bool {
         let instruction = self.current_program[0];
@@ -389,8 +433,12 @@ impl ExecutionEnvironmentByValue {
                 assert!(self.before_programs[0].is_empty());
                 false
             } else {
-                let old_applications = std::mem::replace(&mut self.applications, self.before_programs.pop().unwrap());
-                let old_program = std::mem::replace(&mut self.current_program, self.before_programs.last_mut().unwrap().pop().unwrap());
+                let old_applications =
+                    std::mem::replace(&mut self.applications, self.before_programs.pop().unwrap());
+                let old_program = std::mem::replace(
+                    &mut self.current_program,
+                    self.before_programs.last_mut().unwrap().pop().unwrap(),
+                );
                 let prog = with_applications(old_program, old_applications);
                 self.applications.push(prog);
                 true
@@ -416,7 +464,10 @@ impl ExecutionEnvironmentByValue {
                         true
                     } else {
                         self.applications = self.before_programs.pop().unwrap();
-                        let old_program = std::mem::replace(&mut self.current_program, self.before_programs.last_mut().unwrap().pop().unwrap());
+                        let old_program = std::mem::replace(
+                            &mut self.current_program,
+                            self.before_programs.last_mut().unwrap().pop().unwrap(),
+                        );
                         self.applications.push(old_program);
                         true
                     }
@@ -461,7 +512,6 @@ impl ExecutionEnvironmentByValue {
         result.into_boxed_slice()
     }
 }
-
 
 pub struct SimplifyEnv {
     path: Vec<(usize, ExecutionEnvironment)>,
@@ -526,10 +576,12 @@ pub fn simplify_by_value(program: Program) -> Program {
     simplifier.to_program()
 }
 
-pub fn verify<'a>(program: &'a [u8]) -> Result<u8, &'static str> {
+pub fn verify<'a>(program: &'a [u8]) -> Result<u64, &'static str> {
     let mut flags = Flags::make();
     let mut highest_free_variable = 0;
-    let mut lambda_cont: u8 = 0;
+    let mut lambda_cont: u64 = 0;
+
+    let mut var = Var::make();
 
     for instruction in program {
         let instruction = *instruction;
@@ -538,10 +590,10 @@ pub fn verify<'a>(program: &'a [u8]) -> Result<u8, &'static str> {
             // Illegal instruction
             return Result::Err("Illegal Instruction");
         }
-        if is_var(instruction) {
-            if instruction >= lambda_cont {
+        if let Some(v) = var.build(instruction) {
+            if v >= lambda_cont {
                 highest_free_variable =
-                    u8::max(highest_free_variable, instruction - lambda_cont + 1);
+                    u64::max(highest_free_variable, v - lambda_cont + 1);
             }
             loop {
                 let op = flags.pop_flag();
@@ -554,7 +606,7 @@ pub fn verify<'a>(program: &'a [u8]) -> Result<u8, &'static str> {
                     return Result::Err("Finished, but instructions still coming");
                 }
             }
-        } else {
+        } else if !is_var(instruction) {
             if flags.is_empty() {
                 return Result::Err("Finished, but new instructions still coming");
             }
@@ -587,14 +639,16 @@ pub fn show(program: &Program) -> String {
     let mut lambda_index = 0;
     let mut flags = Flags::make();
 
+    let mut var = Var::make();
+
     for instruction in &**program {
         let instruction = *instruction;
-        if is_var(instruction) {
-            if lambda_index <= instruction {
-                let j = instruction - lambda_index;
+        if let Some(v) = var.build(instruction) {
+            if lambda_index <= v {
+                let j = v - lambda_index;
                 result.push_str(&format!("{}", j));
             } else {
-                result.push_str(VARIABLE_NAMES[(lambda_index - 1 - instruction) as usize]);
+                result.push_str(VARIABLE_NAMES[(lambda_index - 1 - v) as usize]);
             }
 
             loop {
@@ -610,7 +664,7 @@ pub fn show(program: &Program) -> String {
                     break;
                 }
             }
-        } else {
+        } else if !is_var(instruction) {
             let mut instruction = instruction & 0b01111111;
             while instruction != 1 {
                 let op = instruction & 1;
@@ -664,14 +718,13 @@ pub fn show_executor_by_value(executor: &ExecutionEnvironmentByValue) -> String 
         }
     }
     //if !executor.before_programs[0].is_empty() {
-        result.push_str("::");
+    result.push_str("::");
     //}
     result.push_str(&show(&executor.current_program));
     for program in executor.applications.iter() {
         result.push_str("<");
         result.push_str(&show(program));
     }
-    
 
     result
 }
@@ -698,12 +751,11 @@ pub fn simplify_by_value_debug(program: Program) -> Program {
     simplifier.to_program()
 }
 
-
 pub fn simplify_generic(program: Program, show_steps: bool, by_value: bool) -> Program {
     match (show_steps, by_value) {
         (false, false) => simplify(program),
         (true, false) => simplify_debug(program),
         (false, true) => simplify_by_value(program),
-        (true, true) => simplify_by_value_debug(program)
+        (true, true) => simplify_by_value_debug(program),
     }
 }

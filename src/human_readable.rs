@@ -7,13 +7,13 @@ struct State {
     chunks: Vec<(String, Program)>,
     main: Option<Program>,
     error: Option<(String, CompileError)>,
-    location: String
+    location: String,
 }
 
 #[derive(Debug)]
 enum CompileError {
     InvalidCode(&'static str),
-    FreeVariables(u8),
+    FreeVariables(u64),
     DuplicateName(String),
 }
 
@@ -59,12 +59,12 @@ impl State {
             chunks: Vec::new(),
             main: None,
             error: None,
-            location: "Start".to_string()
+            location: "Start".to_string(),
         }
     }
 
     fn process_line(&mut self, line: &str) {
-      self.location = String::from(line);
+        self.location = String::from(line);
     }
 }
 
@@ -72,8 +72,13 @@ pub fn parse_file(path: &str) -> Program {
     let mut state = State::make();
 
     for line in std::fs::read_to_string(path).unwrap().split('\n') {
-        if line.is_empty() { continue }
-        if line == "clear errors" { state.error = None; continue }
+        if line.is_empty() {
+            continue;
+        }
+        if line == "clear errors" {
+            state.error = None;
+            continue;
+        }
         state.process_line(line);
         if line.starts_with("//") {
             continue;
@@ -87,7 +92,7 @@ pub fn parse_file(path: &str) -> Program {
     }
 
     if let Some(s) = state.error {
-      panic!("Error while parsing file: {:?}", s)
+        panic!("Error while parsing file: {:?}", s)
     }
 
     state.main.unwrap()
