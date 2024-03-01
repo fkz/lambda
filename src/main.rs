@@ -7,7 +7,7 @@ mod simple_env;
 mod pretty;
 
 use pretty::Pretty;
-use program::{Program, simplify, simplify_debug};
+use program::{Program, simplify_generic, simplify_debug};
 use simple_env::Env;
 
 use crate::{interact::Environment, program::show};
@@ -37,6 +37,7 @@ fn main() {
     let mut interactive = None;
     let mut prettify = None;
     let mut show_hex = false;
+    let mut by_value = false;
     loop {
         let flag = std::env::args().nth(index).expect("no path given");
         if (!flag.starts_with("--")) {
@@ -48,6 +49,7 @@ fn main() {
             "--number" => { prettify = Some(pretty::Number); show_program = false; },
             "--show-program" => show_program = true,
             "--show-hex" => show_hex = true,
+            "--by-value" => by_value = true,
             other => panic!("Unknown flag {}", other)
         }
         index += 1;
@@ -79,11 +81,7 @@ fn main() {
             println!("Input: {}", show(&program));
         }
         let simplified = {
-            if show_steps {
-                simplify_debug(program)
-            } else {
-                simplify(program)
-            }
+            simplify_generic(program, show_steps, by_value)            
         };
         if show_program {
             println!("Simplified: {}", show(&simplified));

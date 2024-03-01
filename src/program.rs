@@ -1,3 +1,5 @@
+use crate::with_applications;
+
 type Instruction = u8;
 pub type Program = Box<[Instruction]>;
 
@@ -341,6 +343,123 @@ impl ExecutionEnvironment {
     }
 }
 
+pub struct ExecutionEnvironmentByValue {
+    pub current_program: Program,
+    pub applications: Vec<Program>,
+    pub before_programs: Vec<Vec<Program>>,
+    pub outer_lambdas: u8,
+}
+
+impl ExecutionEnvironmentByValue {
+    pub fn make(program: Program) -> Self {
+        ExecutionEnvironmentByValue {
+            applications: Vec::new(),
+            current_program: program,
+            before_programs: vec![Vec::new()],
+            outer_lambdas: 0,
+        }
+    }
+
+    fn with_applications(p: Program, applications: Vec<Program>) -> Program {
+        if applications.is_empty() {
+            return p;
+        }
+        let mut result = Vec::new();
+        let mut count = applications.len();
+        while count > 6 {
+            count -= 6;
+            result.push(0xFF);
+        }
+        result.push(0x80 | ((1 << (count + 1)) - 1));
+        result.extend_from_slice(&p);
+        for application in applications {
+            result.extend_from_slice(&application);
+        }
+        result.into_boxed_slice()
+    }
+    
+
+    pub fn step(&mut self) -> bool {
+        let instruction = self.current_program[0];
+        if is_var(instruction) {
+            if self.before_programs.len() == 1 {
+                assert!(self.before_programs[0].is_empty());
+                false
+            } else {
+                let old_applications = std::mem::replace(&mut self.applications, self.before_programs.pop().unwrap());
+                let old_program = std::mem::replace(&mut self.current_program, self.before_programs.last_mut().unwrap().pop().unwrap());
+                let prog = with_applications(old_program, old_applications);
+                self.applications.push(prog);
+                true
+            }
+        } else if is_app(instruction) {
+            let (program, arg) = split_application(&self.current_program);
+            self.current_program = arg;
+            self.before_programs.last_mut().unwrap().push(program);
+            let old_applications = std::mem::replace(&mut self.applications, Vec::new());
+            self.before_programs.push(old_applications);
+            true
+        } else if is_lambda(instruction) {
+            match self.applications.pop() {
+                Some(param) => {
+                    self.current_program = apply(&self.current_program, &param, 0);
+                    true
+                }
+                None => {
+                    if self.before_programs.len() == 1 {
+                        assert!(self.before_programs[0].is_empty());
+                        self.outer_lambdas += 1;
+                        self.current_program = remove_outer_lambda(&self.current_program);
+                        true
+                    } else {
+                        self.applications = self.before_programs.pop().unwrap();
+                        let old_program = std::mem::replace(&mut self.current_program, self.before_programs.last_mut().unwrap().pop().unwrap());
+                        self.applications.push(old_program);
+                        true
+                    }
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    fn to_program(&self) -> Program {
+        assert!(self.before_programs.len() == 1);
+        assert!(self.before_programs[0].is_empty());
+        let mut result = Vec::new();
+        let mut remaining_outer_lambdas = self.outer_lambdas;
+        let mut remaining_applications = self.applications.len();
+
+        while remaining_outer_lambdas >= 6 {
+            remaining_outer_lambdas -= 6;
+            result.push(0b11000000);
+        }
+        if remaining_outer_lambdas as usize + remaining_applications >= 6 {
+            remaining_applications -= 6 - remaining_outer_lambdas as usize;
+            result.push(0xFF ^ ((1 << remaining_outer_lambdas) - 1));
+            remaining_outer_lambdas = 0;
+
+            while remaining_applications >= 6 {
+                remaining_applications -= 6;
+                result.push(0xFF);
+            }
+        }
+
+        if remaining_outer_lambdas > 0 || remaining_applications > 0 {
+            let sum = remaining_outer_lambdas as usize + remaining_applications;
+            result.push(0b10000000 | ((1 << (sum + 1)) - 1) ^ ((1 << remaining_outer_lambdas) - 1));
+        }
+
+        result.extend_from_slice(&self.current_program);
+        for application in self.applications.iter().rev() {
+            result.extend_from_slice(application);
+        }
+        result.into_boxed_slice()
+    }
+}
+
+
 pub struct SimplifyEnv {
     path: Vec<(usize, ExecutionEnvironment)>,
 }
@@ -395,6 +514,12 @@ pub fn simplify(program: Program) -> Program {
 
     while simplifier.step() {}
 
+    simplifier.to_program()
+}
+
+pub fn simplify_by_value(program: Program) -> Program {
+    let mut simplifier = ExecutionEnvironmentByValue::make(program);
+    while (simplifier.step()) {}
     simplifier.to_program()
 }
 
@@ -519,6 +644,35 @@ pub fn show_executor(executor: &ExecutionEnvironment) -> String {
     result
 }
 
+pub fn show_executor_by_value(executor: &ExecutionEnvironmentByValue) -> String {
+    let mut result = String::new();
+    if executor.outer_lambdas > 0 {
+        result = format!("({})=>", executor.outer_lambdas - 1);
+    }
+    if !executor.before_programs[0].is_empty() {
+        assert_eq!(executor.before_programs[0].len(), 1);
+        result.push_str(&show(&executor.before_programs[0][0]));
+    }
+    for index in 1..executor.before_programs.len() {
+        result.push_str("|");
+        for p in executor.before_programs[index].iter() {
+            result.push_str("<");
+            result.push_str(&show(p));
+        }
+    }
+    //if !executor.before_programs[0].is_empty() {
+        result.push_str("::");
+    //}
+    result.push_str(&show(&executor.current_program));
+    for program in executor.applications.iter() {
+        result.push_str("<");
+        result.push_str(&show(program));
+    }
+    
+
+    result
+}
+
 pub fn simplify_debug(program: Program) -> Program {
     println!("Verified: {:?}", verify(&program));
     println!("Start: {}", show(&program));
@@ -531,4 +685,22 @@ pub fn simplify_debug(program: Program) -> Program {
     }
 
     simplifier.to_program()
+}
+
+pub fn simplify_by_value_debug(program: Program) -> Program {
+    let mut simplifier = ExecutionEnvironmentByValue::make(program);
+    while simplifier.step() {
+        println!("Step: {}", show_executor_by_value(&simplifier));
+    }
+    simplifier.to_program()
+}
+
+
+pub fn simplify_generic(program: Program, show_steps: bool, by_value: bool) -> Program {
+    match (show_steps, by_value) {
+        (false, false) => simplify(program),
+        (true, false) => simplify_debug(program),
+        (false, true) => simplify_by_value(program),
+        (true, true) => simplify_by_value_debug(program)
+    }
 }
