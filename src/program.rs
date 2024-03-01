@@ -420,8 +420,8 @@ impl ExecutionEnvironmentByValue {
         }
         result.push(0x80 | ((1 << (count + 1)) - 1));
         result.extend_from_slice(&p);
-        for application in applications {
-            result.extend_from_slice(&application);
+        for application in applications.iter().rev() {
+            result.extend_from_slice(application);
         }
         result.into_boxed_slice()
     }
@@ -439,7 +439,7 @@ impl ExecutionEnvironmentByValue {
                     &mut self.current_program,
                     self.before_programs.last_mut().unwrap().pop().unwrap(),
                 );
-                let prog = with_applications(old_program, old_applications);
+                let prog = ExecutionEnvironmentByValue::with_applications(old_program, old_applications);
                 self.applications.push(prog);
                 true
             }

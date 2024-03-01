@@ -1,4 +1,4 @@
-use crate::program::{simplify, verify, ExecutionEnvironment, Program};
+use crate::program::{show_executor_by_value, simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue, Program};
 
 pub trait Request: Sized {
     fn from_program(program: &Program) -> Option<Self>;
@@ -68,6 +68,7 @@ fn lambda(program: &[u8]) -> Program {
 pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
     env: &mut Env,
     program: &[u8],
+    by_value: bool,
 ) {
     match crate::program::verify(program) {
         Result::Err(err) => {
@@ -94,33 +95,63 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
             return;
         }
 
-        let mut executor = ExecutionEnvironment::make(program_state);
-        while executor.step() {}
+        println!("Current state: {}", crate::program::show(&program_state));
 
-        //println!("After simplification: {}", crate::program::show_executor(&executor));
+        if !by_value {
+            let mut executor = ExecutionEnvironment::make(program_state);
+            while executor.step() {}
 
-        if executor.outer_lambdas != 1
-            || *executor.program != [0x00]
-            || executor.applications.len() != 2
-        {
-            env.panic(PanicInfo::InvalidState);
-            return;
-        }
-
-        let request = simplify(executor.applications.remove(1));
-
-        match Req::from_program(&request) {
-            Some(req) => env.request(req),
-            None => {
-                env.panic(PanicInfo::InvalidRequest);
+            if executor.outer_lambdas != 1
+                || *executor.program != [0x00]
+                || executor.applications.len() != 2
+            {
+                env.panic(PanicInfo::InvalidState);
                 return;
             }
+
+            let request = simplify(executor.applications.remove(1));
+
+            match Req::from_program(&request) {
+                Some(req) => env.request(req),
+                None => {
+                    env.panic(PanicInfo::InvalidRequest);
+                    return;
+                }
+            }
+
+            program_state = lambda(&executor.applications.remove(0));
+        } else {
+            let mut executor = ExecutionEnvironmentByValue::make(program_state);
+            while executor.step() {
+                println!("Step: {}", show_executor_by_value(&executor))
+            }
+
+            assert_eq!(executor.before_programs.len(), 1);
+            assert!(executor.before_programs[0].is_empty());
+
+            if executor.outer_lambdas != 1
+                || *executor.current_program != [0x00]
+                || executor.applications.len() != 2
+            {
+                env.panic(PanicInfo::InvalidState);
+                return;
+            }
+
+            let request = executor.applications.remove(1);
+
+            match Req::from_program(&request) {
+                Some(req) => env.request(req),
+                None => {
+                    env.panic(PanicInfo::InvalidRequest);
+                    return;
+                }
+            }
+
+            program_state = lambda(&executor.applications.remove(0));
         }
 
         if env.finished() {
             return;
         }
-
-        program_state = lambda(&executor.applications.remove(0));
     }
 }

@@ -83,7 +83,7 @@ fn main() {
     println!("Verify {:?}", program::verify(&program));
 
     if let Some(mut env) = interactive {
-        interact::interact(&mut env, &program);
+        interact::interact(&mut env, &program, by_value);
     } else {
         if show_program {
             println!("Input: {}", show(&program));

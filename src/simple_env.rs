@@ -35,14 +35,17 @@ impl crate::interact::Response for Response {
 #[derive(PartialEq, Clone, Debug)]
 pub enum Request {
     Print(u8),
+    PrintPing,
     Exit,
     Read,
 }
 
 impl crate::interact::Request for Request {
     fn from_program(program: &Program) -> Option<Request> {
+        println!("Request: {}", hex::encode(program));
         match program[0] {
             0x88 => match program[1] {
+                0x00 => Some(Request::PrintPing),
                 0x01 => Some(Request::Exit),
                 0x02 => Some(Request::Read),
                 _ => None,
@@ -87,6 +90,7 @@ impl Request {
                 }
                 result.into_boxed_slice()
             }
+            Request::PrintPing => [0x88, 0x00].to_vec().into_boxed_slice(),
             Request::Exit => [0x88, 0x01].to_vec().into_boxed_slice(),
             Request::Read => [0x88, 0x02].to_vec().into_boxed_slice(),
         }
@@ -122,6 +126,8 @@ impl crate::interact::Environment<Request, Response> for Env {
             Request::Print(byte) => {
                 print!("{}", char::from_u32(byte as u32).unwrap());
             }
+            Request::PrintPing =>
+                println!("Ping!"),
             Request::Read => {
                 let mut buffer: [u8; 1] = [0x00];
                 std::io::Read::read(&mut std::io::stdin(), &mut buffer).unwrap();
