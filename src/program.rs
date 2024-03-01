@@ -103,6 +103,9 @@ fn copy_over(target: &mut Vec<u8>, source: &Program, increase: u8) {
         let instruction = *instruction;
         if is_var(instruction) {
             if instruction >= lambda_index {
+                if instruction + increase >= 128 {
+                    panic!("Only variables up to 128 are supported, {} {}", instruction, increase);
+                }
                 target.push(instruction + increase);
             } else {
                 target.push(instruction);
