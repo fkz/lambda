@@ -119,7 +119,7 @@ impl Var {
     fn instrcutions(out: &mut Vec<u8>, var: u64) {
         let mut other = Vec::new();
         let mut v = var;
-        let last = (v & 0x63) as u8;
+        let last = (v & 63) as u8;
         v >>= 6;
         while (v & !63) != 0 {
             other.push(((v & 63) | 64) as u8);
