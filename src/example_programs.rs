@@ -90,7 +90,7 @@ mod tests {
             let simplified = simplify(program);
             let compare = number(f(arg1, arg2));
 
-            assert!(simplified == compare)
+            assert_eq!(simplified, compare)
         })
     }
 
@@ -107,6 +107,7 @@ mod tests {
     fn test_some_adds() {
         let test_add = test_op(ADD, Box::new(|x, y| x + y));
         let test_mul = test_op(MUL, Box::new(|x, y| x * y));
+        let test_sub = test_op(SUB, Box::new(|x, y| x - y));
         test_add(0, 0);
         test_add(0, 1);
         test_add(0, 2);
@@ -117,6 +118,7 @@ mod tests {
         test_add(20, 20);
         test_add(25, 25);
         test_mul(100, 93);
+        test_sub(2, 1);
     }
 
     #[test]
