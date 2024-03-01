@@ -183,7 +183,7 @@ fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program
     while remaining_applications > 0 {
         let instruction = program[index];
         into.push(instruction);
-        if instruction & 0b10000000 == 0 {
+        if instruction & 0b11000000 == 0 {
             remaining_applications -= 1;
         } else {
             remaining_applications += u8::count_ones(instruction) - 2;
