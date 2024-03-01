@@ -121,7 +121,7 @@ impl Var {
         let mut v = var;
         let last = (v & 63) as u8;
         v >>= 6;
-        while (v & !63) != 0 {
+        while v != 0 {
             other.push(((v & 63) | 64) as u8);
             v >>= 6;
         }
@@ -185,7 +185,7 @@ fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program
         into.push(instruction);
         if instruction & 0b11000000 == 0 {
             remaining_applications -= 1;
-        } else {
+        } else if instruction & 0b10000000 == 0b10000000 {
             remaining_applications += u8::count_ones(instruction) - 2;
         }
         index += 1;
