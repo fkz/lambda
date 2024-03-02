@@ -32,7 +32,7 @@ fn b(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("small-sub");
-    for i in values.iter() {
+    for i in values.iter().take(5) {
         group.throughput(Throughput::Elements(3 * *i as u64));
         benchmark_function(&mut group,  "examples/sub", vec![*i * 2, *i]);
     }
@@ -50,7 +50,7 @@ fn b(c: &mut Criterion) {
     group.sample_size(10);
     for i in values.iter().take(3) {
         group.throughput(Throughput::Elements(3 * *i as u64));
-        benchmark_function(&mut group, "examples/sub", vec![*i * 20, *i * 10]);
+        benchmark_function(&mut group, "examples/sub", vec![*i * 4, *i * 2]);
     }
     group.finish();
 }
