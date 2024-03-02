@@ -1,5 +1,6 @@
 use criterion::{
-    black_box, criterion_group, criterion_main, measurement::WallTime, profiler::Profiler, BenchmarkGroup, BenchmarkId, Criterion, Throughput
+    black_box, criterion_group, criterion_main, measurement::WallTime, profiler::Profiler,
+    BenchmarkGroup, BenchmarkId, Criterion, Throughput,
 };
 use lambda_calculus::{execute, parse_arguments, pretty, Program};
 use pprof::criterion::{Output, PProfProfiler};
@@ -19,22 +20,20 @@ fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, argument
 }
 
 fn b(c: &mut Criterion) {
-    let values = [
-        10, 20, 30, 40, 50, 60, 70, 80, 90, 100
-    ];
+    let values = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
     let mut group = c.benchmark_group("small-add");
-    
+
     for i in values.iter() {
         group.throughput(Throughput::Elements(2 * *i as u64));
-        benchmark_function(&mut group,"examples/add", vec![*i, *i]);
+        benchmark_function(&mut group, "examples/add", vec![*i, *i]);
     }
     group.finish();
 
     let mut group = c.benchmark_group("small-sub");
     for i in values.iter().take(5) {
         group.throughput(Throughput::Elements(3 * *i as u64));
-        benchmark_function(&mut group,  "examples/sub", vec![*i * 2, *i]);
+        benchmark_function(&mut group, "examples/sub", vec![*i * 2, *i]);
     }
     group.finish();
 
