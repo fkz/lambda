@@ -439,7 +439,8 @@ impl ExecutionEnvironmentByValue {
                     &mut self.current_program,
                     self.before_programs.last_mut().unwrap().pop().unwrap(),
                 );
-                let prog = ExecutionEnvironmentByValue::with_applications(old_program, old_applications);
+                let prog =
+                    ExecutionEnvironmentByValue::with_applications(old_program, old_applications);
                 self.applications.push(prog);
                 true
             }
@@ -592,8 +593,7 @@ pub fn verify<'a>(program: &'a [u8]) -> Result<u64, &'static str> {
         }
         if let Some(v) = var.build(instruction) {
             if v >= lambda_cont {
-                highest_free_variable =
-                    u64::max(highest_free_variable, v - lambda_cont + 1);
+                highest_free_variable = u64::max(highest_free_variable, v - lambda_cont + 1);
             }
             loop {
                 let op = flags.pop_flag();

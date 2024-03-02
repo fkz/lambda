@@ -1,4 +1,7 @@
-use crate::program::{show_executor_by_value, simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue, Program};
+use crate::program::{
+    show_executor_by_value, simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue,
+    Program,
+};
 
 pub trait Request: Sized {
     fn from_program(program: &Program) -> Option<Self>;

@@ -124,8 +124,7 @@ impl crate::interact::Environment<Request, Response> for Env {
             Request::Print(byte) => {
                 print!("{}", char::from_u32(byte as u32).unwrap());
             }
-            Request::PrintPing =>
-                println!("Ping!"),
+            Request::PrintPing => println!("Ping!"),
             Request::Read => {
                 let mut buffer: [u8; 1] = [0x00];
                 std::io::Read::read(&mut std::io::stdin(), &mut buffer).unwrap();

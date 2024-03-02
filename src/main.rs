@@ -1,3 +1,4 @@
+mod compare;
 pub mod example_interact_programs;
 mod example_programs;
 mod human_readable;

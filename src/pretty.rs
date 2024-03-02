@@ -1,3 +1,5 @@
+use crate::compare::Inst;
+
 use super::program::Program;
 
 pub trait Pretty {
@@ -33,32 +35,28 @@ impl Pretty for Number {
     }
 
     fn program_to_string(&self, p: &[u8]) -> Option<String> {
-        let expected_number = {
-            if p.len() == 2 {
-                0
-            } else if p.len() % 2 == 1 {
-                p.len() / 2
-            } else {
-                return None;
+        let mut result = 0;
+
+        let mut iter = super::compare::prog_iter(p);
+
+        if iter.next()? != Inst::Lambda {
+            return None;
+        };
+        if iter.next()? != Inst::Lambda {
+            return None;
+        };
+
+        loop {
+            match iter.next()? {
+                Inst::Var(0) => return Some(result.to_string()),
+                Inst::Apply => {
+                    if iter.next()? != Inst::Var(1) {
+                        return None;
+                    };
+                }
+                _ => return None,
             }
-        };
-
-        if expected_number == 0 && p != [0x84, 0x00] {
-            return None;
-        };
-        if expected_number > 0 && p[0..2] != [0x8C, 0x01] {
-            return None;
-        };
-        if expected_number > 0 && p.last() != Some(&0x00) {
-            return None;
+            result += 1;
         }
-
-        for i in 2..(p.len() - 1) {
-            if (i % 2 == 0 && p[i] != 0x83) || (i % 2 == 1 && p[i] != 0x01) {
-                return None;
-            }
-        }
-
-        Some(expected_number.to_string())
     }
 }
