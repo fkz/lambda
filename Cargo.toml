@@ -7,3 +7,11 @@ edition = "2021"
 
 [dependencies]
 hex = "0.4"
+
+[build]
+rustflags = ["-C", "target-cpu=native", "-C", "symbol-mangling-version=v0"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+debug = 1
