@@ -99,9 +99,21 @@ fn copy_over(target: &mut Vec<u8>, source: &Program, increase: u64) {
     }
 }
 
+fn count_ones(instruction: u8) -> u32 {
+    const VALUES: [u8; 64] = [
+        0x00, 0x01, 0x01, 0x12, 0x01, 0x12, 0x12, 0x23, 0x01, 0x12, 0x12, 0x23, 0x12, 0x23, 0x23,
+        0x34, 0x01, 0x12, 0x12, 0x23, 0x12, 0x23, 0x23, 0x34, 0x12, 0x23, 0x23, 0x34, 0x23, 0x34,
+        0x34, 0x45, 0x01, 0x12, 0x12, 0x23, 0x12, 0x23, 0x23, 0x34, 0x12, 0x23, 0x23, 0x34, 0x23,
+        0x34, 0x34, 0x45, 0x12, 0x23, 0x23, 0x34, 0x23, 0x34, 0x34, 0x45, 0x23, 0x34, 0x34, 0x45,
+        0x34, 0x45, 0x45, 0x56,
+    ];
+
+    (VALUES[((instruction & 127) >> 1) as usize] >> ((instruction & 1) * 4) & 7) as u32
+}
+
 fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program {
     let mut index = 0;
-    let mut remaining_applications = u8::count_ones(first_instruction) - 1;
+    let mut remaining_applications = count_ones(first_instruction) + 1;
 
     while remaining_applications > 0 {
         let instruction = program[index];
@@ -109,7 +121,7 @@ fn consume(first_instruction: u8, program: &[u8], into: &mut Vec<u8>) -> Program
         if instruction & 0b11000000 == 0 {
             remaining_applications -= 1;
         } else if instruction & 0b10000000 == 0b10000000 {
-            remaining_applications += u8::count_ones(instruction) - 2;
+            remaining_applications += count_ones(instruction);
         }
         index += 1;
     }
