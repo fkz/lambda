@@ -18,7 +18,6 @@ fn is_app(instruction: Instruction) -> bool {
     instruction & 0b10000001 == 0b10000001
 }
 
-
 struct Var {
     value: u64,
 }
