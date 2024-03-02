@@ -20,20 +20,37 @@ fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, argument
 
 fn b(c: &mut Criterion) {
     let values = [
-        0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100
     ];
 
-    let mut group = c.benchmark_group("add");
+    let mut group = c.benchmark_group("small-add");
+    
     for i in values.iter() {
         group.throughput(Throughput::Elements(2 * *i as u64));
         benchmark_function(&mut group,"examples/add", vec![*i, *i]);
     }
     group.finish();
 
-    let mut group = c.benchmark_group("sub");
-    for i in values.iter().take(7) {
+    let mut group = c.benchmark_group("small-sub");
+    for i in values.iter() {
         group.throughput(Throughput::Elements(3 * *i as u64));
         benchmark_function(&mut group,  "examples/sub", vec![*i * 2, *i]);
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("big-add");
+    group.sample_size(10);
+    for i in values.iter().take(3) {
+        group.throughput(Throughput::Elements(2 * *i as u64));
+        benchmark_function(&mut group, "examples/add", vec![*i * 1000, *i * 1000]);
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("big-sub");
+    group.sample_size(10);
+    for i in values.iter().take(3) {
+        group.throughput(Throughput::Elements(3 * *i as u64));
+        benchmark_function(&mut group, "examples/sub", vec![*i * 20, *i * 10]);
     }
     group.finish();
 }
