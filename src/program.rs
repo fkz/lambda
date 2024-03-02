@@ -1,5 +1,8 @@
 use crate::with_applications;
 
+mod flags;
+use flags::Flags;
+
 type Instruction = u8;
 pub type Program = Box<[Instruction]>;
 
@@ -15,85 +18,6 @@ fn is_app(instruction: Instruction) -> bool {
     instruction & 0b10000001 == 0b10000001
 }
 
-struct Flags {
-    flags: u128,
-    more_flags: Vec<u128>,
-}
-
-impl Flags {
-    fn make() -> Self {
-        Flags {
-            flags: 2,
-            more_flags: Vec::new(),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.flags == 0 && self.more_flags.is_empty()
-    }
-
-    fn extend(&mut self, bits: usize) {
-        if self.more_flags.len() == 0 {
-            if self.flags & (0xF << 124) == 0 {
-                self.flags <<= bits;
-                return;
-            } else {
-                self.more_flags.push(0);
-            }
-        } else if self.more_flags[self.more_flags.len() - 1] & (0xF << 124) != 0 {
-            self.more_flags.push(0);
-        }
-        let mut index = self.more_flags.len() - 1;
-        while index >= 1 {
-            self.more_flags[index] <<= bits;
-            let previous = self.more_flags[index - 1];
-            self.more_flags[index] |=
-                (((1 << bits) - 1) << (128 - bits) & previous) >> (128 - bits);
-            index -= 1;
-        }
-        self.more_flags[0] <<= bits;
-        self.more_flags[0] |= (((1 << bits) - 1) << (128 - bits) & self.flags) >> (128 - bits);
-        self.flags <<= bits;
-    }
-
-    fn shrink(&mut self, bits: usize) {
-        self.flags >>= bits;
-        if self.more_flags.len() > 0 {
-            self.flags |= (self.more_flags[0] & ((1 << bits) - 1)) << (128 - bits);
-            self.more_flags[0] >>= bits;
-            let mut index = 1;
-            while index < self.more_flags.len() {
-                self.more_flags[index - 1] |=
-                    (self.more_flags[index] & ((1 << bits) - 1)) << (128 - bits);
-                self.more_flags[index] >>= bits;
-                index += 1;
-            }
-            if self.more_flags[self.more_flags.len() - 1] == 0 {
-                self.more_flags.remove(self.more_flags.len() - 1);
-            }
-        }
-    }
-
-    fn put_lambda(&mut self) {
-        self.extend(2);
-        self.flags |= 1;
-    }
-
-    fn put_app(&mut self) {
-        self.extend(4);
-        self.flags |= 14;
-    }
-
-    fn pop_flag(&mut self) -> u8 {
-        let result = (self.flags & 3) as u8;
-        self.shrink(2);
-        result
-    }
-
-    const LAMBDA_FLAG: u8 = 1;
-    const APP_FLAG_MIDDLE: u8 = 2;
-    const APP_FLAG_END: u8 = 3;
-}
 
 struct Var {
     value: u64,
