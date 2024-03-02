@@ -12,7 +12,7 @@ fn do_benchmark(c: &mut BenchmarkGroup<'_, WallTime>, id: BenchmarkId, program: 
 }
 
 fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, arguments: Vec<u32>) {
-    let id = BenchmarkId::from_parameter(format!("{}, {}", arguments[0], arguments[1]));
+    let id = BenchmarkId::from_parameter(format!("{:5}, {:5}", arguments[0], arguments[1]));
 
     let program = parse_arguments(path, &pretty::number_u32(), arguments);
 
