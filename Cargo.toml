@@ -1,7 +1,8 @@
 [package]
-name = "lambda-calculus"
+name = "lambda_calculus"
 version = "0.1.0"
 edition = "2021"
+autobenches = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,3 +16,10 @@ rustflags = ["-C", "target-cpu=native", "-C", "symbol-mangling-version=v0"]
 codegen-units = 1
 lto = "fat"
 debug = 1
+
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+
+[[bench]]
+name = "add"
+harness = false

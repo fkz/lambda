@@ -1,54 +1,27 @@
-mod compare;
-pub mod example_interact_programs;
-mod example_programs;
-mod human_readable;
-mod interact;
-mod pretty;
-mod program;
-mod simple_env;
-
-use pretty::Pretty;
-use program::{simplify_debug, simplify_generic, Program};
-use simple_env::Env;
-
-use crate::{interact::Environment, program::show};
-
-fn with_applications(p: Program, applications: Vec<Program>) -> Program {
-    if applications.is_empty() {
-        return p;
-    }
-    let mut result = Vec::new();
-    let mut count = applications.len();
-    while count > 6 {
-        count -= 6;
-        result.push(0xFF);
-    }
-    result.push(0x80 | ((1 << (count + 1)) - 1));
-    result.extend_from_slice(&p);
-    for application in applications {
-        result.extend_from_slice(&application);
-    }
-    result.into_boxed_slice()
-}
+use lambda_calculus as lib;
 
 fn main() {
     let mut index = 1;
     let mut show_steps = false;
     let mut show_program = true;
     let mut interactive = None;
-    let mut prettify = None;
+    let mut prettify = lib::pretty::nothing();
     let mut show_hex = false;
     let mut by_value = false;
-    loop {
-        let flag = std::env::args().nth(index).expect("no path given");
-        if (!flag.starts_with("--")) {
-            break;
+
+    let mut arg_iterator = std::env::args();
+    let _program_name = arg_iterator.next();
+
+    let path = loop {
+        let flag = arg_iterator.next().expect("no path given");
+        if !flag.starts_with("--") {
+            break flag;
         }
         match flag.as_str() {
             "--show-steps" => show_steps = true,
-            "--interactive" => interactive = Some(Env::make()),
+            "--interactive" => interactive = Some(lib::simple_env::Env::make()),
             "--number" => {
-                prettify = Some(pretty::Number);
+                prettify = lib::pretty::number();
                 show_program = false;
             }
             "--show-program" => show_program = true,
@@ -56,51 +29,15 @@ fn main() {
             "--by-value" => by_value = true,
             other => panic!("Unknown flag {}", other),
         }
-        index += 1;
-    }
+    };
 
-    let path = std::env::args().nth(index).expect("no path given");
-
-    let remaining = std::env::args().len() - index - 1;
-    let mut applications = Vec::new();
-    if remaining > 0 {
-        let prettify = prettify
-            .as_ref()
-            .expect("when using arguments, use --number to parse them");
-        while (applications.len() < remaining) {
-            let arg = std::env::args()
-                .nth(index + applications.len() + 1)
-                .unwrap();
-            let program = prettify
-                .string_to_program(&arg)
-                .expect(format!("Expected {}, but got {}", prettify.name(), arg).as_str());
-            applications.push(program);
-        }
-    }
-
-    let program = human_readable::parse_file(&path);
-    let program = with_applications(program, applications);
-
-    println!("Verify {:?}", program::verify(&program));
+    let program = lib::parse_arguments(&path, &prettify, arg_iterator.collect());
 
     if let Some(mut env) = interactive {
-        interact::interact(&mut env, &program, by_value, show_steps);
+        lib::execute_interactive(&mut env, program, show_steps, by_value)
     } else {
-        if show_program {
-            println!("Input: {}", show(&program));
-        }
-        let simplified = { simplify_generic(program, show_steps, by_value) };
-        if show_program {
-            println!("Simplified: {}", show(&simplified));
-        }
-        if show_hex {
-            println!("Simplified: {}", hex::encode(&simplified));
-        }
-        if let Some(p) = prettify {
-            let result = p
-                .program_to_string(&simplified)
-                .expect(format!("Couldn't parse result of program as {}", p.name()).as_str());
-            println!("Result: {}", result);
-        }
+        let result = lib::execute(program, show_steps, show_program, show_hex, by_value);
+
+        println!("Result: {:?}", prettify.program_to_string(&result).unwrap());
     }
 }

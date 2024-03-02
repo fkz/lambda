@@ -16,8 +16,6 @@ where
     Req: Request,
     Res: Response,
 {
-    fn make() -> Self;
-
     fn request(&mut self, request: Req);
     fn panic(&mut self, panic_info: PanicInfo);
 

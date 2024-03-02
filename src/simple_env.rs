@@ -107,14 +107,6 @@ impl crate::interact::Environment<Request, Response> for Env {
         self.finished
     }
 
-    fn make() -> Self {
-        Env {
-            started: false,
-            finished: false,
-            read: None,
-        }
-    }
-
     fn request(&mut self, request: Request) {
         match request {
             Request::Exit => {
@@ -152,6 +144,16 @@ impl crate::interact::Environment<Request, Response> for Env {
     }
 }
 
+impl Env {
+    pub fn make() -> Self {
+        Self {
+            started: false,
+            finished: false,
+            read: None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum RequestOrResponse {
     Request(Request),
@@ -166,13 +168,6 @@ pub struct MockEnv {
 impl crate::interact::Environment<Request, Response> for MockEnv {
     fn finished(&self) -> bool {
         self.values.is_empty() || self.failed.is_some()
-    }
-
-    fn make() -> Self {
-        MockEnv {
-            values: Vec::new(),
-            failed: None,
-        }
     }
 
     fn next_response(&mut self) -> Option<Response> {

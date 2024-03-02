@@ -2,21 +2,47 @@ use crate::compare::Inst;
 
 use super::program::Program;
 
-pub trait Pretty {
-    fn program_to_string(&self, p: &[u8]) -> Option<String>;
-    fn string_to_program(&self, s: &str) -> Option<Program>;
+pub trait Pretty<T> {
+    fn program_to_string(&self, p: &[u8]) -> Option<T>;
+    fn string_to_program(&self, s: T) -> Option<Program>;
     fn name(&self) -> String;
 }
 
-pub struct Number;
+struct Number;
+struct Nothing;
 
-impl Pretty for Number {
+pub fn number() -> Box<dyn Pretty<String>> {
+    Box::new(Number)
+}
+
+pub fn nothing() -> Box<dyn Pretty<String>> {
+    Box::new(Nothing)
+}
+
+pub fn number_u32() -> Box<dyn Pretty<u32>> {
+    Box::new(Number)
+}
+
+impl Pretty<String> for Nothing {
+    fn name(&self) -> String {
+        "nothing".to_string()
+    }
+
+    fn string_to_program(&self, _s: String) -> Option<Program> {
+        None
+    }
+
+    fn program_to_string(&self, p: &[u8]) -> Option<String> {
+        Some(crate::program::show(p))
+    }
+}
+
+impl Pretty<u32> for Number {
     fn name(&self) -> String {
         "number".to_string()
     }
 
-    fn string_to_program(&self, s: &str) -> Option<Program> {
-        let number: u32 = s.parse().ok()?;
+    fn string_to_program(&self, number: u32) -> Option<Program> {
         if number == 0 {
             return Some(Box::new([0x84, 0x00]));
         }
@@ -34,7 +60,7 @@ impl Pretty for Number {
         Some(result.into_boxed_slice())
     }
 
-    fn program_to_string(&self, p: &[u8]) -> Option<String> {
+    fn program_to_string(&self, p: &[u8]) -> Option<u32> {
         let mut result = 0;
 
         let mut iter = super::compare::prog_iter(p);
@@ -48,7 +74,7 @@ impl Pretty for Number {
 
         loop {
             match iter.next()? {
-                Inst::Var(0) => return Some(result.to_string()),
+                Inst::Var(0) => return Some(result),
                 Inst::Apply => {
                     if iter.next()? != Inst::Var(1) {
                         return None;
@@ -58,5 +84,21 @@ impl Pretty for Number {
             }
             result += 1;
         }
+    }
+}
+
+impl Pretty<String> for Number {
+    fn name(&self) -> String {
+        "number".to_string()
+    }
+
+    fn string_to_program(&self, s: String) -> Option<Program> {
+        let number: u32 = s.parse().ok()?;
+        Pretty::<u32>::string_to_program(self, number)
+    }
+
+    fn program_to_string(&self, p: &[u8]) -> Option<String> {
+        let result = Pretty::<u32>::program_to_string(self, p);
+        Some(result?.to_string())
     }
 }

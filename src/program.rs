@@ -557,14 +557,14 @@ const VARIABLE_NAMES: [&str; 16] = [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "l", "m", "n", "o", "p", "q",
 ];
 
-pub fn show(program: &Program) -> String {
+pub fn show(program: &[u8]) -> String {
     let mut result = String::new();
     let mut lambda_index = 0;
     let mut flags = Flags::make();
 
     let mut var = Var::make();
 
-    for instruction in &**program {
+    for instruction in program {
         let instruction = *instruction;
         if let Some(v) = var.build(instruction) {
             if lambda_index <= v {
