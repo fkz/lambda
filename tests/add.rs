@@ -5,11 +5,7 @@ const SECOND: u32 = 100000;
 
 #[test]
 fn add_big_numbers() {
-    let program = parse_arguments(
-        "examples/add",
-        &pretty::number_u32(),
-        vec![FIRST, SECOND],
-    );
+    let program = parse_arguments("examples/add", &pretty::number_u32(), vec![FIRST, SECOND]);
     let simplified = execute(program, false, false, false, true);
     assert_eq!(
         pretty::number_u32().program_to_string(&simplified),

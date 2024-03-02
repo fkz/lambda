@@ -1,28 +1,45 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, profiler::Profiler};
+use criterion::{
+    black_box, criterion_group, criterion_main, measurement::WallTime, profiler::Profiler, BenchmarkGroup, BenchmarkId, Criterion, Throughput
+};
 use lambda_calculus::{execute, parse_arguments, pretty, Program};
 use pprof::criterion::{Output, PProfProfiler};
 
-
-fn do_benchmark(c: &mut Criterion, name: &str, program: Program) {
-    c.bench_function(name, |b| b.iter(|| execute(black_box(program.clone()), false, false, false, true)));
+fn do_benchmark(c: &mut BenchmarkGroup<'_, WallTime>, id: BenchmarkId, program: Program) {
+    c.bench_with_input(id, &program, |b, p| {
+        b.iter(|| execute(black_box(p.clone()), false, false, false, true))
+    });
 }
 
-fn benchmark_function(c: &mut Criterion, name: &str, path: &str, arguments: Vec<u32>) {
-    let program = parse_arguments(
-        path,
-        &pretty::number_u32(),
-        arguments,
-    );
-    do_benchmark(c, name, program);
+fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, arguments: Vec<u32>) {
+    let id = BenchmarkId::from_parameter(format!("{}, {}", arguments[0], arguments[1]));
+
+    let program = parse_arguments(path, &pretty::number_u32(), arguments);
+
+    do_benchmark(c, id, program);
 }
 
 fn b(c: &mut Criterion) {
-    benchmark_function(c, "add", "examples/add",vec![10000, 10000]);
-    benchmark_function(c, "sub", "examples/sub",vec![50, 25]);
+    let values = [
+        0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
+    ];
+
+    let mut group = c.benchmark_group("add");
+    for i in values.iter() {
+        group.throughput(Throughput::Elements(2 * *i as u64));
+        benchmark_function(&mut group,"examples/add", vec![*i, *i]);
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("sub");
+    for i in values.iter().take(7) {
+        group.throughput(Throughput::Elements(3 * *i as u64));
+        benchmark_function(&mut group,  "examples/sub", vec![*i * 2, *i]);
+    }
+    group.finish();
 }
 
 criterion_group! {
-    name = benches; 
+    name = benches;
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
     targets = b
 }
