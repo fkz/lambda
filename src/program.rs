@@ -1,6 +1,6 @@
 use crate::with_applications;
 
-mod flags;
+pub mod flags;
 use flags::Flags;
 
 type Instruction = u8;
@@ -18,15 +18,15 @@ fn is_app(instruction: Instruction) -> bool {
     instruction & 0b10000001 == 0b10000001
 }
 
-struct Var {
+pub struct Var {
     value: u64,
 }
 
 impl Var {
-    fn make() -> Self {
+    pub fn make() -> Self {
         Var { value: 0 }
     }
-    fn build(&mut self, instruction: u8) -> Option<u64> {
+    pub fn build(&mut self, instruction: u8) -> Option<u64> {
         if !is_var(instruction) {
             return None;
         }
@@ -39,7 +39,7 @@ impl Var {
         }
     }
 
-    fn instrcutions(out: &mut Vec<u8>, var: u64) {
+    pub fn instrcutions(out: &mut Vec<u8>, var: u64) {
         let mut other = Vec::new();
         let mut v = var;
         let last = (v & 63) as u8;

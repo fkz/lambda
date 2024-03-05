@@ -6,6 +6,7 @@ mod interact;
 pub mod pretty;
 mod program;
 pub mod simple_env;
+pub mod memory_representation;
 
 use interact::{Request, Response};
 use pretty::Pretty;
