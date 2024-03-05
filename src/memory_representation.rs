@@ -282,7 +282,8 @@ impl Executor {
             }
             Program::App(f, mut args) => {
                 if let Some(arg) = args.pop() {
-                    self.previous.push((Program::App(f, args), self.app_stack));
+                    let a = if args.is_empty() { *f } else { Program::App(f, args) };
+                    self.previous.push((a, self.app_stack));
                     self.app_stack = Vec::new();
                     self.current = arg;
                     (self, true)
