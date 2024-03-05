@@ -7,7 +7,7 @@ use pprof::criterion::{Output, PProfProfiler};
 
 fn do_benchmark(c: &mut BenchmarkGroup<'_, WallTime>, id: BenchmarkId, program: Program) {
     c.bench_with_input(id, &program, |b, p| {
-        b.iter(|| execute(black_box(p.clone()), false, false, false, true))
+        b.iter(|| execute(black_box(p.clone()), false, false, false, true, true))
     });
 }
 

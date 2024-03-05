@@ -3,10 +3,10 @@ pub mod example_interact_programs;
 mod example_programs;
 mod human_readable;
 mod interact;
+pub mod memory_representation;
 pub mod pretty;
 mod program;
 pub mod simple_env;
-pub mod memory_representation;
 
 use interact::{Request, Response};
 use pretty::Pretty;
@@ -73,13 +73,39 @@ pub fn execute(
     show_program: bool,
     show_hex: bool,
     by_value: bool,
+    new: bool,
 ) -> Program {
     //println!("Verify {:?}", program::verify(&program));
 
     if show_program {
         println!("Input: {}", show(&program));
     }
-    let simplified = { simplify_generic(program, show_steps, by_value) };
+
+    let simplified = if new {
+        let instr = memory_representation::parse_program(&program).unwrap();
+        let mut executor = memory_representation::Executor::new(instr);
+        let mut step = 0;
+        loop {
+            if !by_value {
+                panic!("Not implemented");
+            }
+            if show_steps {
+                println!("Step: {}", executor.show())
+            };
+            let (e, cont) = executor.step();
+            executor = e;
+            if !cont {
+                break;
+            }
+            step += 1;
+        }
+        if show_program {
+            println!("Steps: {}", step);
+        }
+        executor.to_program().to_opcode()
+    } else {
+        simplify_generic(program, show_steps, by_value)
+    };
     if show_program {
         println!("Simplified: {}", show(&simplified));
     }
