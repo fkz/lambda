@@ -2,7 +2,7 @@ use criterion::{
     black_box, criterion_group, criterion_main, measurement::Measurement, 
     BenchmarkGroup, BenchmarkId, Criterion, Throughput,
 };
-use criterion_cycles_per_byte::CyclesPerByte;
+//use criterion_cycles_per_byte::CyclesPerByte;
 use lambda_calculus::{execute, parse_arguments, pretty, Program};
 use pprof::criterion::{Output, PProfProfiler};
 
@@ -63,7 +63,7 @@ fn b<W: Measurement>(c: &mut Criterion<W>) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));//.with_measurement(CyclesPerByte);
     targets = b
 }
 criterion_main!(benches);
