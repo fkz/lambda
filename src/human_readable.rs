@@ -1,7 +1,6 @@
 // Compile (more) human-readable files
 
 use crate::program::Program;
-use std::collections::HashMap;
 
 struct State {
     chunks: Vec<(String, Program)>,
@@ -14,7 +13,6 @@ struct State {
 enum CompileError {
     InvalidCode(&'static str),
     FreeVariables(u64),
-    DuplicateName(String),
 }
 
 impl State {

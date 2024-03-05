@@ -1,15 +1,14 @@
 use lambda_calculus as lib;
-use lib::memory_representation;
 
 fn main() {
-    let mut index = 1;
     let mut show_steps = false;
-    let mut show_program = true;
+    let mut show_program = false;
     let mut interactive = None;
     let mut prettify = lib::pretty::nothing();
     let mut show_hex = false;
     let mut by_value = false;
     let mut new = false;
+    let mut show_step_count = true;
 
     let mut arg_iterator = std::env::args();
     let _program_name = arg_iterator.next();
@@ -30,6 +29,7 @@ fn main() {
             "--show-hex" => show_hex = true,
             "--by-value" => by_value = true,
             "--new" => new = true,
+            "--no-show-step-count" => show_step_count = false,
             other => panic!("Unknown flag {}", other),
         }
     };
@@ -39,8 +39,12 @@ fn main() {
     if let Some(mut env) = interactive {
         lib::execute_interactive(&mut env, program, show_steps, by_value)
     } else {
-        let result = lib::execute(program, show_steps, show_program, show_hex, by_value, new);
+        let mut step_count = 0;
+        let result = lib::execute(program, show_steps, show_program, show_hex, by_value, new, &mut step_count);
+        if show_step_count {
+            println!("Step count: {}", step_count);
+        }
 
-        println!("Result: {:?}", prettify.program_to_string(&result).unwrap());
+        println!("Result: {}", prettify.program_to_string(&result).unwrap());
     }
 }

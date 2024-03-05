@@ -8,10 +8,8 @@ pub mod pretty;
 mod program;
 pub mod simple_env;
 
-use interact::{Request, Response};
 use pretty::Pretty;
-use program::{simplify_debug, simplify_generic};
-use simple_env::Env;
+use program::simplify_generic;
 
 pub type Program = program::Program;
 
@@ -74,6 +72,7 @@ pub fn execute(
     show_hex: bool,
     by_value: bool,
     new: bool,
+    step_count: &mut u64,
 ) -> Program {
     //println!("Verify {:?}", program::verify(&program));
 
@@ -99,12 +98,10 @@ pub fn execute(
             }
             step += 1;
         }
-        if show_program {
-            println!("Steps: {}", step);
-        }
+        *step_count = step;
         executor.to_program().to_opcode()
     } else {
-        simplify_generic(program, show_steps, by_value)
+        simplify_generic(program, show_steps, by_value, step_count)
     };
     if show_program {
         println!("Simplified: {}", show(&simplified));

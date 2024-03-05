@@ -1,5 +1,5 @@
 use crate::program::{
-    show_executor_by_value, simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue,
+    simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue,
     Program,
 };
 
@@ -86,6 +86,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
 
     let stream = &[0x86, 0x01, 0x00];
     let mut program_state = apply1(program, stream);
+    let mut step_count = 0;
 
     loop {
         while let Some(resp) = env.next_response() {
@@ -113,7 +114,7 @@ pub fn interact<Env: Environment<Req, Res>, Req: Request, Res: Response>(
                 return;
             }
 
-            let request = simplify(executor.applications.remove(1));
+            let request = simplify(executor.applications.remove(1), &mut step_count);
 
             match Req::from_program(&request) {
                 Some(req) => env.request(req),

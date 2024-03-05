@@ -1,5 +1,5 @@
 use super::program::flags::Flags;
-use std::{mem::ManuallyDrop, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Program {
@@ -190,7 +190,7 @@ impl Executor {
         let mut to_do = Vec::new();
         to_do.push((&mut f, 0));
 
-        while let Some((mut current, depth)) = to_do.pop() {
+        while let Some((current, depth)) = to_do.pop() {
             match current {
                 Program::Lambda(p) => {
                     to_do.push((p, depth + 1));
@@ -206,10 +206,10 @@ impl Executor {
                         *current = Program::Reference(rc.clone());
                     }
                 }
-                Program::GlobalVar(v) => {
+                Program::GlobalVar(_) => {
                     // Do nothing
                 }
-                Program::Reference(p) => {
+                Program::Reference(_) => {
                     // Do nothing
                 }
             }
@@ -224,7 +224,7 @@ impl Executor {
         let mut to_do = Vec::new();
         to_do.push((&mut f, 0));
 
-        while let Some((mut current, depth)) = to_do.pop() {
+        while let Some((current, depth)) = to_do.pop() {
             match current {
                 Program::Lambda(p) => {
                     to_do.push((p, depth + 1));
@@ -294,7 +294,7 @@ impl Executor {
             Program::Var(v) => {
                 panic!("Unbound var {}", v);
             }
-            Program::GlobalVar(v) => {
+            Program::GlobalVar(_) => {
                 if let Some((previous_f, previous_app)) = self.previous.pop() {
                     let mut current = self.current;
                     if self.app_stack.len() > 0 {

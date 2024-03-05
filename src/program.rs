@@ -1,5 +1,3 @@
-use crate::with_applications;
-
 pub mod flags;
 use flags::Flags;
 
@@ -486,17 +484,17 @@ impl SimplifyEnv {
     }
 }
 
-pub fn simplify(program: Program) -> Program {
+pub fn simplify(program: Program, step_count: &mut u64) -> Program {
     let mut simplifier = SimplifyEnv::make(program);
 
-    while simplifier.step() {}
+    while simplifier.step() { *step_count += 1 }
 
     simplifier.to_program()
 }
 
-pub fn simplify_by_value(program: Program) -> Program {
+pub fn simplify_by_value(program: Program, step_count: &mut u64) -> Program {
     let mut simplifier = ExecutionEnvironmentByValue::make(program);
-    while (simplifier.step()) {}
+    while simplifier.step() { *step_count += 1 }
     simplifier.to_program()
 }
 
@@ -652,11 +650,12 @@ pub fn show_executor_by_value(executor: &ExecutionEnvironmentByValue) -> String 
     result
 }
 
-pub fn simplify_debug(program: Program) -> Program {
+pub fn simplify_debug(program: Program, step_count: &mut u64) -> Program {
     println!("Verified: {:?}", verify(&program));
     println!("Start: {}", show(&program));
     let mut simplifier = SimplifyEnv::make(program);
     while simplifier.step() {
+        *step_count += 1;
         println!("Step: {}", show_executor(&simplifier.path[0].1));
         for index in simplifier.path.as_slice()[1..].iter() {
             println!("  {} {}", index.0, show_executor(&index.1))
@@ -666,19 +665,20 @@ pub fn simplify_debug(program: Program) -> Program {
     simplifier.to_program()
 }
 
-pub fn simplify_by_value_debug(program: Program) -> Program {
+pub fn simplify_by_value_debug(program: Program, step_count: &mut u64) -> Program {
     let mut simplifier = ExecutionEnvironmentByValue::make(program);
     while simplifier.step() {
+        *step_count += 1;
         println!("Step: {}", show_executor_by_value(&simplifier));
     }
     simplifier.to_program()
 }
 
-pub fn simplify_generic(program: Program, show_steps: bool, by_value: bool) -> Program {
+pub fn simplify_generic(program: Program, show_steps: bool, by_value: bool, step_count: &mut u64) -> Program {
     match (show_steps, by_value) {
-        (false, false) => simplify(program),
-        (true, false) => simplify_debug(program),
-        (false, true) => simplify_by_value(program),
-        (true, true) => simplify_by_value_debug(program),
+        (false, false) => simplify(program, step_count),
+        (true, false) => simplify_debug(program, step_count),
+        (false, true) => simplify_by_value(program, step_count),
+        (true, true) => simplify_by_value_debug(program, step_count),
     }
 }

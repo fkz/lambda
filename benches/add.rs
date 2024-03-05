@@ -1,17 +1,24 @@
 use criterion::{
-    black_box, criterion_group, criterion_main, measurement::WallTime, profiler::Profiler,
+    black_box, criterion_group, criterion_main, measurement::Measurement, 
     BenchmarkGroup, BenchmarkId, Criterion, Throughput,
 };
+use criterion_cycles_per_byte::CyclesPerByte;
 use lambda_calculus::{execute, parse_arguments, pretty, Program};
 use pprof::criterion::{Output, PProfProfiler};
 
-fn do_benchmark(c: &mut BenchmarkGroup<'_, WallTime>, id: BenchmarkId, program: Program) {
+fn do_benchmark<W: Measurement>(c: &mut BenchmarkGroup<'_, W>, id: BenchmarkId, program: Program) {
+
+    let mut steps = 0;
+    execute(program.clone(), false, false, false, true, true, &mut steps);
+    c.throughput(Throughput::Elements(steps));
+
     c.bench_with_input(id, &program, |b, p| {
-        b.iter(|| execute(black_box(p.clone()), false, false, false, true, true))
+        let mut step_count = 0;
+        b.iter(|| execute(black_box(p.clone()), false, false, false, true, true, &mut step_count))
     });
 }
 
-fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, arguments: Vec<u32>) {
+fn benchmark_function<W: Measurement>(c: &mut BenchmarkGroup<'_, W>, path: &str, arguments: Vec<u32>) {
     let id = BenchmarkId::from_parameter(format!("{:5}, {:5}", arguments[0], arguments[1]));
 
     let program = parse_arguments(path, &pretty::number_u32(), arguments);
@@ -19,7 +26,7 @@ fn benchmark_function(c: &mut BenchmarkGroup<'_, WallTime>, path: &str, argument
     do_benchmark(c, id, program);
 }
 
-fn b(c: &mut Criterion) {
+fn b<W: Measurement>(c: &mut Criterion<W>) {
     let values = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
     let mut group = c.benchmark_group("small-add");
