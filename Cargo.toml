@@ -31,9 +31,5 @@ iai = "0.1"
 name = "add"
 harness = false
 
-[[bench]]
-name = "iai"
-harness = false
-
 [[bin]]
 name = "to-benchmark-json"
