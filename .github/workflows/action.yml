@@ -31,6 +31,8 @@ jobs:
         with:
           # What benchmark tool the output.txt came from
           tool: 'customSmallerIsBetter'
+          # Where the output from the benchmark tool is stored
+          output-file-path: output.json
           # Workflow will fail when an alert happens
           fail-on-alert: true
           # Access token to deploy GitHub Pages branch
