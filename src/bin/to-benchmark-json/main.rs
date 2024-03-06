@@ -16,8 +16,8 @@ fn main() {
         let v2: Value = serde_json::from_reader(reader2).unwrap();
         let title = &v2["title"];
 
-        let standard_error = Value::Number(Number::from_f64(standard_error.as_f64().unwrap() * 1000000.0).unwrap());
-        let point_estimate = Value::Number(Number::from_f64(point_estimate.as_f64().unwrap() * 1000000.0).unwrap());
+        let standard_error = Value::Number(Number::from_f64(standard_error.as_f64().unwrap() / 1000000.0).unwrap());
+        let point_estimate = Value::Number(Number::from_f64(point_estimate.as_f64().unwrap() / 1000000.0).unwrap());
 
         json!({ "value": point_estimate, "range": standard_error, "name": title, "unit": "ms/op"})
     }).collect();
