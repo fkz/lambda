@@ -4,7 +4,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub enum Program {
     Lambda(Box<Program>),
-    App(Box<(Program, Program)>),
+    App(Box<Program>, Vec<Program>),
     Var(u64),
     GlobalVar(u64),
     Reference(Rc<Program>),
@@ -54,10 +54,13 @@ impl Program {
                     instruction_flags.push(&mut result, false);
                     current = (*p, current.1 + 1);
                 }
-                Program::App(f) => {
-                    app_stack.push((f.1, current.1));
-                    current.0 = f.0;
-                    instruction_flags.push(&mut result, true);
+                Program::App(f, args) => {
+                    let len = args.len();
+                    app_stack.extend(args.into_iter().rev().map(|a| (a, current.1)));
+                    current.0 = *f;
+                    for _ in 0..len {
+                        instruction_flags.push(&mut result, true);
+                    }
                 }
                 Program::Var(v) => {
                     instruction_flags.flush(&mut result);
@@ -120,7 +123,7 @@ pub fn parse_program(input: &[u8]) -> Result<Program, &'static str> {
                     break;
                 } else if op == Flags::APP_FLAG_END {
                     let f = result.pop().unwrap();
-                    current = Program::App(Box::new((f, current)));
+                    current = Program::App(Box::new(f), vec![current]);
                 } else {
                     return Result::Err("Finished, but instructions still coming");
                 }
@@ -170,15 +173,8 @@ impl Executor {
 
     pub fn to_program(self) -> Program {
         assert_eq!(self.previous.len(), 0);
-        
-        let mut app_stack = self.app_stack;
-        let mut result = self.current;
-        while let Some(next) = app_stack.pop() {
-            result = Program::App(Box::new((result, next)));
-        }
-        
         let mut result = Executor::replace_glob(
-            result,
+            Program::App(Box::new(self.current), self.app_stack),
             self.lambdas,
         );
         for _ in 0..self.lambdas {
@@ -199,9 +195,11 @@ impl Executor {
                 Program::Lambda(p) => {
                     to_do.push((p, depth + 1));
                 }
-                Program::App(f) => {
-                    to_do.push((&mut f.0, depth));
-                    to_do.push((&mut f.1, depth));
+                Program::App(f, args) => {
+                    to_do.push((f, depth));
+                    for arg in args {
+                        to_do.push((arg, depth));
+                    }
                 }
                 Program::Var(v) => {
                     if *v == depth {
@@ -231,9 +229,11 @@ impl Executor {
                 Program::Lambda(p) => {
                     to_do.push((p, depth + 1));
                 }
-                Program::App(f) => {
-                    to_do.push((&mut f.0, depth));
-                        to_do.push((&mut f.1, depth));
+                Program::App(f, args) => {
+                    to_do.push((f, depth));
+                    for arg in args {
+                        to_do.push((arg, depth));
+                    }
                 }
                 Program::Var(v) => {
                     if *v >= depth {
@@ -261,14 +261,6 @@ impl Executor {
         f
     }
 
-    fn app(current: Program, mut args: Vec<Program>) -> Program {
-        if let Some(last_app) = args.pop() {
-            Program::App(Box::new((Executor::app(current, args), last_app)))
-        } else {
-            current
-        }
-    }
-
     pub fn step(mut self) -> (Self, bool) {
         match self.current {
             Program::Lambda(p) => {
@@ -288,13 +280,17 @@ impl Executor {
                     }
                 }
             }
-            Program::App(f) => {
-                
-                let a = f.0;
-                self.previous.push((a, self.app_stack));
-                self.app_stack = Vec::new();
-                self.current = f.1;
-                (self, true)
+            Program::App(f, mut args) => {
+                if let Some(arg) = args.pop() {
+                    let a = if args.is_empty() { *f } else { Program::App(f, args) };
+                    self.previous.push((a, self.app_stack));
+                    self.app_stack = Vec::new();
+                    self.current = arg;
+                    (self, true)
+                } else {
+                    self.current = *f;
+                    (self, true)
+                }
             }
             Program::Var(v) => {
                 panic!("Unbound var {}", v);
@@ -303,7 +299,7 @@ impl Executor {
                 if let Some((previous_f, previous_app)) = self.previous.pop() {
                     let mut current = self.current;
                     if self.app_stack.len() > 0 {
-                        current = Executor::app(current, self.app_stack);
+                        current = Program::App(Box::new(current), self.app_stack);
                     }
                     self.app_stack = previous_app;
                     self.app_stack.push(current);
