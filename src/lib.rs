@@ -106,9 +106,6 @@ pub fn execute(
                     break;
                 }
                 step += 1;
-                if step % 64 == 0 {
-                    a.collect_garbage(false);
-                }
             }
             *step_count = step;
             gc_mem::to_mem_rep(a, a.deref_short(&executor.to_program(a))).to_opcode()
