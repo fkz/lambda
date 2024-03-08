@@ -487,14 +487,18 @@ impl SimplifyEnv {
 pub fn simplify(program: Program, step_count: &mut u64) -> Program {
     let mut simplifier = SimplifyEnv::make(program);
 
-    while simplifier.step() { *step_count += 1 }
+    while simplifier.step() {
+        *step_count += 1
+    }
 
     simplifier.to_program()
 }
 
 pub fn simplify_by_value(program: Program, step_count: &mut u64) -> Program {
     let mut simplifier = ExecutionEnvironmentByValue::make(program);
-    while simplifier.step() { *step_count += 1 }
+    while simplifier.step() {
+        *step_count += 1
+    }
     simplifier.to_program()
 }
 
@@ -674,7 +678,12 @@ pub fn simplify_by_value_debug(program: Program, step_count: &mut u64) -> Progra
     simplifier.to_program()
 }
 
-pub fn simplify_generic(program: Program, show_steps: bool, by_value: bool, step_count: &mut u64) -> Program {
+pub fn simplify_generic(
+    program: Program,
+    show_steps: bool,
+    by_value: bool,
+    step_count: &mut u64,
+) -> Program {
     match (show_steps, by_value) {
         (false, false) => simplify(program, step_count),
         (true, false) => simplify_debug(program, step_count),

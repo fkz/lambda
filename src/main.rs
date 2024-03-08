@@ -8,6 +8,7 @@ fn main() {
     let mut show_hex = false;
     let mut by_value = false;
     let mut new = false;
+    let mut new_gc = false;
     let mut show_step_count = true;
 
     let mut arg_iterator = std::env::args();
@@ -29,6 +30,10 @@ fn main() {
             "--show-hex" => show_hex = true,
             "--by-value" => by_value = true,
             "--new" => new = true,
+            "--new-gc" => {
+                new = true;
+                new_gc = true
+            }
             "--no-show-step-count" => show_step_count = false,
             other => panic!("Unknown flag {}", other),
         }
@@ -40,7 +45,17 @@ fn main() {
         lib::execute_interactive(&mut env, program, show_steps, by_value)
     } else {
         let mut step_count = 0;
-        let result = lib::execute(program, show_steps, show_program, show_hex, by_value, new, &mut step_count);
+        let result = lib::execute(
+            program,
+            show_steps,
+            show_program,
+            show_hex,
+            by_value,
+            new,
+            new_gc,
+            &mut step_count,
+            None,
+        );
         if show_step_count {
             println!("Step count: {}", step_count);
         }

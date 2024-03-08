@@ -170,17 +170,14 @@ impl Executor {
 
     pub fn to_program(self) -> Program {
         assert_eq!(self.previous.len(), 0);
-        
+
         let mut app_stack = self.app_stack;
         let mut result = self.current;
         while let Some(next) = app_stack.pop() {
             result = Program::App(Box::new((result, next)));
         }
-        
-        let mut result = Executor::replace_glob(
-            result,
-            self.lambdas,
-        );
+
+        let mut result = Executor::replace_glob(result, self.lambdas);
         for _ in 0..self.lambdas {
             result = Program::Lambda(Box::new(result));
         }
@@ -233,7 +230,7 @@ impl Executor {
                 }
                 Program::App(f) => {
                     to_do.push((&mut f.0, depth));
-                        to_do.push((&mut f.1, depth));
+                    to_do.push((&mut f.1, depth));
                 }
                 Program::Var(v) => {
                     if *v >= depth {
@@ -289,7 +286,6 @@ impl Executor {
                 }
             }
             Program::App(f) => {
-                
                 let a = f.0;
                 self.previous.push((a, self.app_stack));
                 self.app_stack = Vec::new();

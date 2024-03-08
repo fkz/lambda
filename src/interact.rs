@@ -1,6 +1,5 @@
 use crate::program::{
-    simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue,
-    Program,
+    simplify, verify, ExecutionEnvironment, ExecutionEnvironmentByValue, Program,
 };
 
 pub trait Request: Sized {

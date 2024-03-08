@@ -1,8 +1,8 @@
-use serde_json::{Value, Number, json};
+use serde_json::{json, Number, Value};
 
 fn main() {
     // Read all files named new.json recursively in criterion folder
- 
+
     let values = glob::glob("target/criterion/**/new/estimates.json").unwrap().map(| path | {
         let path = path.unwrap();
         let file = std::fs::File::open(&path).unwrap();

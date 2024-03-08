@@ -1,6 +1,7 @@
 mod compare;
 pub mod example_interact_programs;
 mod example_programs;
+pub mod gc_mem;
 mod human_readable;
 mod interact;
 pub mod memory_representation;
@@ -8,6 +9,7 @@ pub mod pretty;
 mod program;
 pub mod simple_env;
 
+use gc_mem::Allocator;
 use pretty::Pretty;
 use program::simplify_generic;
 
@@ -72,7 +74,9 @@ pub fn execute(
     show_hex: bool,
     by_value: bool,
     new: bool,
+    new_gc: bool,
     step_count: &mut u64,
+    gc_mem_alloc: Option<&mut gc_mem::alloc_impl::Allocator>,
 ) -> Program {
     //println!("Verify {:?}", program::verify(&program));
 
@@ -82,24 +86,49 @@ pub fn execute(
 
     let simplified = if new {
         let instr = memory_representation::parse_program(&program).unwrap();
-        let mut executor = memory_representation::Executor::new(instr);
-        let mut step = 0;
-        loop {
-            if !by_value {
-                panic!("Not implemented");
+
+        if new_gc {
+            let a = gc_mem_alloc.unwrap_or_else(|| gc_mem::alloc_impl::get_allocator());
+            let mut executor = gc_mem::Executor::<gc_mem::alloc_impl::Allocator>::new(
+                a.to_long(&a.new(&gc_mem::from_mem_rep(a, &instr))),
+            );
+            let mut step = 0;
+            loop {
+                if !by_value {
+                    panic!("Not implemented");
+                }
+                if show_steps {
+                    println!("Step"); //, executor.show())
+                };
+                let (e, cont) = executor.step(&a);
+                executor = e;
+                if !cont {
+                    break;
+                }
+                step += 1;
             }
-            if show_steps {
-                println!("Step: {}", executor.show())
-            };
-            let (e, cont) = executor.step();
-            executor = e;
-            if !cont {
-                break;
+            *step_count = step;
+            gc_mem::to_mem_rep(a, a.deref_short(&executor.to_program(a))).to_opcode()
+        } else {
+            let mut executor = memory_representation::Executor::new(instr);
+            let mut step = 0;
+            loop {
+                if !by_value {
+                    panic!("Not implemented");
+                }
+                if show_steps {
+                    println!("Step: {}", executor.show())
+                };
+                let (e, cont) = executor.step();
+                executor = e;
+                if !cont {
+                    break;
+                }
+                step += 1;
             }
-            step += 1;
+            *step_count = step;
+            executor.to_program().to_opcode()
         }
-        *step_count = step;
-        executor.to_program().to_opcode()
     } else {
         simplify_generic(program, show_steps, by_value, step_count)
     };
