@@ -93,7 +93,7 @@ pub trait Allocator: Sized {
 
 pub mod alloc_impl {
     use std::{
-        cell::{Cell, Ref, RefCell},
+        cell::{Cell, Ref, RefCell, UnsafeCell},
         marker::PhantomData,
         mem,
         rc::Rc,
@@ -130,7 +130,7 @@ pub mod alloc_impl {
     }
 
     pub struct Allocator {
-        memory: RefCell<Vec<super::Program<InternalBox>>>,
+        memory: UnsafeCell<Vec<super::Program<InternalBox>>>,
         other: RefCell<Vec<super::Program<InternalBox>>>,
         roots: RefCell<Vec<InternalBox>>,
         free_roots: RefCell<Vec<u32>>,
@@ -159,7 +159,7 @@ pub mod alloc_impl {
 
         fn new<'a>(&'a self, value: &super::Program<Self::ShortBox<'a>>) -> Self::ShortBox<'a> {
             let new_value: super::Program<InternalBox> = value.map(|x| x.value, |x| x.value);
-            let mut b = self.memory.borrow_mut();
+            let mut b = unsafe { &mut *self.memory.get() };
             b.push(new_value);
             ShortBox {
                 value: InternalBox {
@@ -175,7 +175,7 @@ pub mod alloc_impl {
             value2: &super::Program<Self::ShortBox<'a>>,
         ) -> <Self::ShortBox<'a> as super::HasBox2>::Box2 {
             let new_value: super::Program<InternalBox> = value.map(|x| x.value, |x| x.value);
-            let mut b = self.memory.borrow_mut();
+            let mut b = unsafe { &mut *self.memory.get() };
             b.push(new_value);
             let new_value2: super::Program<InternalBox> = value2.map(|x| x.value, |x| x.value);
             b.push(new_value2);
@@ -192,7 +192,7 @@ pub mod alloc_impl {
             value: Self::ShortBox<'a>,
             replacement: super::Program<Self::ShortBox<'a>>,
         ) {
-            let mut b = self.memory.borrow_mut();
+            let mut b = unsafe { &mut *self.memory.get() };
             b[value.value.value as usize] = replacement.map(|x| x.value, |x| x.value);
         }
 
@@ -250,7 +250,7 @@ pub mod alloc_impl {
             &'a self,
             value: &Self::ShortBox<'a>,
         ) -> super::Program<Self::ShortBox<'a>> {
-            self.memory.borrow()[value.value.value as usize].map(
+            (unsafe { &mut *self.memory.get() })[value.value.value as usize].map(
                 |x| ShortBox {
                     value: *x,
                     phantom: PhantomData,
@@ -325,7 +325,7 @@ pub mod alloc_impl {
     }
 
     static mut ALLOCATOR: Allocator = Allocator {
-        memory: RefCell::new(Vec::new()),
+        memory: UnsafeCell::new(Vec::new()),
         other: RefCell::new(Vec::new()),
         roots: RefCell::new(Vec::new()),
         free_roots: RefCell::new(Vec::new()),
@@ -469,9 +469,9 @@ impl<A: Allocator> Executor<A> {
 
     fn deep_clone<'a>(a: &'a A, p: A::ShortBox<'a>) -> A::ShortBox<'a> {
         let result = a.new(&a.deref_short(&p));
-        
+
         let mut to_do = vec![result];
-        
+
         while let Some(next) = to_do.pop() {
             let mut deref = a.deref_short(&next);
             if let Some(b1) = deref.box1() {
