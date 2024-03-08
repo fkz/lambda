@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709898248334,
+  "lastUpdate": 1709901142186,
   "repoUrl": "https://github.com/fkz/lambda",
   "entries": {
     "Benchmark": [
@@ -1050,6 +1050,156 @@ window.BENCHMARK_DATA = {
             "value": 312.29553387,
             "unit": "ms/op",
             "range": 0.23657414621652956
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "development@schmitthenner.eu",
+            "name": "Fabian Schmitthenner",
+            "username": "fkz"
+          },
+          "committer": {
+            "email": "development@schmitthenner.eu",
+            "name": "Fabian Schmitthenner",
+            "username": "fkz"
+          },
+          "distinct": true,
+          "id": "ed91f3d56e679c67487ff708849a97ff813f42d6",
+          "message": "Revert \"does garbage collection help?\"\n\nThis reverts commit 4d067b008bdf5b9631e4ea29c187b6bd317d8247.",
+          "timestamp": "2024-03-08T12:23:10Z",
+          "tree_id": "e4e74db1bc211a2e01a81994b01be76f71d2ae7e",
+          "url": "https://github.com/fkz/lambda/commit/ed91f3d56e679c67487ff708849a97ff813f42d6"
+        },
+        "date": 1709901141823,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "big-add/10000, 10000",
+            "value": 6.286427266777778,
+            "unit": "ms/op",
+            "range": 0.006468139376789597
+          },
+          {
+            "name": "big-add/20000, 20000",
+            "value": 12.543340709627977,
+            "unit": "ms/op",
+            "range": 0.010067353577447013
+          },
+          {
+            "name": "big-add/30000, 30000",
+            "value": 18.86151819663492,
+            "unit": "ms/op",
+            "range": 0.03545808638202558
+          },
+          {
+            "name": "big-sub/   40,    20",
+            "value": 0.3003197568925821,
+            "unit": "ms/op",
+            "range": 0.00014318326147368435
+          },
+          {
+            "name": "big-sub/   80,    40",
+            "value": 1.0646664329891105,
+            "unit": "ms/op",
+            "range": 0.0003771207250532817
+          },
+          {
+            "name": "big-sub/  120,    60",
+            "value": 2.298602282350198,
+            "unit": "ms/op",
+            "range": 0.0004202390095574066
+          },
+          {
+            "name": "small-add/   10,    10",
+            "value": 0.007707290675996508,
+            "unit": "ms/op",
+            "range": 0.000005496344683054254
+          },
+          {
+            "name": "small-add/   20,    20",
+            "value": 0.015487940970731143,
+            "unit": "ms/op",
+            "range": 0.000015855388184606367
+          },
+          {
+            "name": "small-add/   30,    30",
+            "value": 0.019388407668159666,
+            "unit": "ms/op",
+            "range": 0.000018587900805112428
+          },
+          {
+            "name": "small-add/   40,    40",
+            "value": 0.029294835124286704,
+            "unit": "ms/op",
+            "range": 0.000018164011680868787
+          },
+          {
+            "name": "small-add/   50,    50",
+            "value": 0.03127962179009911,
+            "unit": "ms/op",
+            "range": 0.000017471301607070034
+          },
+          {
+            "name": "small-add/   60,    60",
+            "value": 0.03666811707702959,
+            "unit": "ms/op",
+            "range": 0.000017448273175370294
+          },
+          {
+            "name": "small-add/   70,    70",
+            "value": 0.04606291690062064,
+            "unit": "ms/op",
+            "range": 0.00004288955285256828
+          },
+          {
+            "name": "small-add/   80,    80",
+            "value": 0.055148540950553486,
+            "unit": "ms/op",
+            "range": 0.00007139727698079031
+          },
+          {
+            "name": "small-add/   90,    90",
+            "value": 0.06208344671280685,
+            "unit": "ms/op",
+            "range": 0.00003066320508632993
+          },
+          {
+            "name": "small-add/  100,   100",
+            "value": 0.0677697407117765,
+            "unit": "ms/op",
+            "range": 0.00019736799746559623
+          },
+          {
+            "name": "small-sub/   20,    10",
+            "value": 0.0802987299544495,
+            "unit": "ms/op",
+            "range": 0.00006977635922668218
+          },
+          {
+            "name": "small-sub/   40,    20",
+            "value": 0.2799864359275332,
+            "unit": "ms/op",
+            "range": 0.00016508774787291013
+          },
+          {
+            "name": "small-sub/   60,    30",
+            "value": 0.6035890672243407,
+            "unit": "ms/op",
+            "range": 0.000855732311587011
+          },
+          {
+            "name": "small-sub/   80,    40",
+            "value": 1.042587466232363,
+            "unit": "ms/op",
+            "range": 0.0014120967994946927
+          },
+          {
+            "name": "small-sub/  100,    50",
+            "value": 1.604106122972206,
+            "unit": "ms/op",
+            "range": 0.0007961829446523253
           }
         ]
       }
