@@ -114,6 +114,17 @@ pub mod alloc_impl {
         capacity: usize,
     }
 
+    impl<T> Drop for KeepVec<T> {
+        fn drop(&mut self) {
+            unsafe {
+                if self.capacity > 0 {
+                    let _ =
+                        Vec::from_raw_parts(self.vec_store as *mut (ShortBox, T), 0, self.capacity);
+                }
+            }
+        }
+    }
+
     impl<T> super::KeepVecTrait<T> for KeepVec<T> {
         type ShortBox<'a> = ShortBox<'a>;
 
@@ -498,6 +509,8 @@ impl<A: Allocator> Executor<A> {
                 }
             }
         }
+
+        self.replace_to_do.from_vec(to_do);
 
         new_f
     }
