@@ -5,7 +5,7 @@ use std::{
 };
 
 pub trait HasBox2 {
-    type Box2;
+    type Box2: Copy + Clone;
 }
 
 #[derive(Copy, Clone)]
@@ -467,6 +467,32 @@ impl<A: Allocator> Executor<A> {
         f
     }
 
+    fn deep_clone<'a>(a: &'a A, p: A::ShortBox<'a>) -> A::ShortBox<'a> {
+        let result = a.new(&a.deref_short(&p));
+        
+        let mut to_do = vec![result];
+        
+        while let Some(next) = to_do.pop() {
+            let mut deref = a.deref_short(&next);
+            if let Some(b1) = deref.box1() {
+                let n = a.new(&a.deref_short(b1));
+                to_do.push(n);
+                deref.set_box1(n);
+                a.replace(next, deref);
+            } else if let Some(b) = deref.box2() {
+                let (b1, b2) = a.pair(*b);
+                let n = a.new2(&a.deref_short(&b1), &a.deref_short(&b2));
+                let (n1, n2) = a.pair(n);
+                to_do.push(n1);
+                to_do.push(n2);
+                deref.set_box2(n);
+                a.replace(next, deref);
+            }
+        }
+
+        result
+    }
+
     fn app<'a>(
         a: &'a A,
         current: Program<A::ShortBox<'a>>,
@@ -538,7 +564,7 @@ impl<A: Allocator> Executor<A> {
                 }
             }
             Program::Reference(p) => {
-                self.current = a.to_long(&p);
+                self.current = a.to_long(&Executor::deep_clone(a, p));
                 (self, true)
             }
         }
