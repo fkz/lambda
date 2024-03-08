@@ -401,17 +401,23 @@ impl<A: Allocator> Executor<A> {
 
     fn replace<'a>(a: &'a A, f: A::ShortBox<'a>, app: A::ShortBox<'a>) -> A::ShortBox<'a> {
         let mut to_do = Vec::new();
-        to_do.push((f, 0));
+        let new_f = a.new(&a.deref_short(&f));
+        to_do.push((new_f, 0));
 
         while let Some((current, depth)) = to_do.pop() {
             match a.deref_short(&current) {
                 Program::Lambda(p) => {
-                    to_do.push((p, depth + 1));
+                    let new_p = a.new(&a.deref_short(&p));
+                    a.replace(current, Program::Lambda(new_p));
+                    to_do.push((new_p, depth + 1));
                 }
                 Program::App(f) => {
                     let (f, app) = a.pair(f);
-                    to_do.push((f, depth));
-                    to_do.push((app, depth));
+                    let b = a.new2(&a.deref_short(&f), &a.deref_short(&app));
+                    let (f_new, app_new) = a.pair(b);
+                    a.replace(current, Program::App(b));
+                    to_do.push((f_new, depth));
+                    to_do.push((app_new, depth));
                 }
                 Program::Var(v) => {
                     if v == depth {
@@ -430,7 +436,7 @@ impl<A: Allocator> Executor<A> {
             }
         }
 
-        f
+        new_f
     }
 
     fn replace_glob<'a>(a: &'a A, f: A::ShortBox<'a>, glob_count: u64) -> A::ShortBox<'a> {
@@ -465,34 +471,6 @@ impl<A: Allocator> Executor<A> {
         }
 
         f
-    }
-
-    fn deep_clone<'a>(a: &'a A, p: A::ShortBox<'a>) -> A::ShortBox<'a> {
-        let result = a.new(&a.deref_short(&p));
-
-        let mut to_do = vec![result];
-
-        while let Some(next) = to_do.pop() {
-            let mut deref = a.deref_short(&next);
-            if let Program::Reference(_) = deref {
-                // Do nothing
-            } else if let Some(b1) = deref.box1() {
-                let n = a.new(&a.deref_short(b1));
-                to_do.push(n);
-                deref.set_box1(n);
-                a.replace(next, deref);
-            } else if let Some(b) = deref.box2() {
-                let (b1, b2) = a.pair(*b);
-                let n = a.new2(&a.deref_short(&b1), &a.deref_short(&b2));
-                let (n1, n2) = a.pair(n);
-                to_do.push(n1);
-                to_do.push(n2);
-                deref.set_box2(n);
-                a.replace(next, deref);
-            }
-        }
-
-        result
     }
 
     fn app<'a>(
@@ -566,7 +544,7 @@ impl<A: Allocator> Executor<A> {
                 }
             }
             Program::Reference(p) => {
-                self.current = a.to_long(&Executor::deep_clone(a, p));
+                self.current = a.to_long(&p);
                 (self, true)
             }
         }
