@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, UnsafeCell},
     marker::PhantomData,
+    os::raw::c_void,
     rc::Rc,
 };
 
@@ -89,6 +90,16 @@ pub trait Allocator: Sized {
     fn remove_long(long: &mut Self::LongBox);
 
     fn collect_garbage(&mut self, print_info: bool);
+
+    type KeepVec<T>: for<'a> KeepVecTrait<T, ShortBox<'a> = Self::ShortBox<'a>>;
+}
+
+trait KeepVecTrait<T> {
+    type ShortBox<'a>;
+
+    fn new() -> Self;
+    fn to_vec<'a>(&mut self) -> Vec<(Self::ShortBox<'a>, T)>;
+    fn from_vec<'a>(&mut self, vec: Vec<(Self::ShortBox<'a>, T)>);
 }
 
 pub mod alloc_impl {
@@ -96,8 +107,51 @@ pub mod alloc_impl {
         cell::{Cell, Ref, RefCell, UnsafeCell},
         marker::PhantomData,
         mem,
-        rc::Rc,
     };
+
+    pub struct KeepVec<T> {
+        vec_store: *mut (InternalBox, T),
+        capacity: usize,
+    }
+
+    impl<T> super::KeepVecTrait<T> for KeepVec<T> {
+        type ShortBox<'a> = ShortBox<'a>;
+
+        fn new() -> Self {
+            Self {
+                vec_store: std::ptr::null_mut(),
+                capacity: 0,
+            }
+        }
+
+        fn to_vec<'a>(&mut self) -> Vec<(ShortBox<'a>, T)> {
+            unsafe {
+                if self.capacity > 0 {
+                    let result = Vec::from_raw_parts(
+                        self.vec_store as *mut (ShortBox<'a>, T),
+                        0,
+                        self.capacity,
+                    );
+                    self.capacity = 0;
+                    result
+                } else {
+                    Vec::new()
+                }
+            }
+        }
+
+        fn from_vec<'a>(&mut self, mut vec: Vec<(ShortBox<'a>, T)>) {
+            unsafe {
+                if self.capacity > 0 {
+                    panic!("Can only store one vec");
+                }
+                vec.clear();
+                self.capacity = vec.capacity();
+                self.vec_store = vec.as_ptr() as *mut (InternalBox, T);
+                mem::forget(vec);
+            }
+        }
+    }
 
     pub struct LongBox<A: super::Allocator<LongBox = LongBox<A>>> {
         value: u32,
@@ -156,6 +210,7 @@ pub mod alloc_impl {
         type LongBox = LongBox<Self>;
         type ShortBox<'a> = ShortBox<'a>;
         type Ref = ();
+        type KeepVec<T> = KeepVec<T>;
 
         fn new<'a>(&'a self, value: &super::Program<Self::ShortBox<'a>>) -> Self::ShortBox<'a> {
             let new_value: super::Program<InternalBox> = value.map(|x| x.value, |x| x.value);
@@ -370,6 +425,8 @@ pub struct Executor<A: Allocator> {
     app_stack: Vec<A::LongBox>,
     previous: Vec<(A::LongBox, Vec<A::LongBox>)>,
     lambdas: u64,
+
+    replace_to_do: A::KeepVec<u32>,
 }
 
 impl<A: Allocator> Executor<A> {
@@ -379,6 +436,7 @@ impl<A: Allocator> Executor<A> {
             app_stack: Vec::new(),
             previous: Vec::new(),
             lambdas: 0,
+            replace_to_do: A::KeepVec::new(),
         }
     }
 
@@ -399,8 +457,13 @@ impl<A: Allocator> Executor<A> {
         result
     }
 
-    fn replace<'a>(a: &'a A, f: A::ShortBox<'a>, app: A::ShortBox<'a>) -> A::ShortBox<'a> {
-        let mut to_do = Vec::new();
+    fn replace<'a>(
+        &mut self,
+        a: &'a A,
+        f: A::ShortBox<'a>,
+        app: A::ShortBox<'a>,
+    ) -> A::ShortBox<'a> {
+        let mut to_do = self.replace_to_do.to_vec::<'a>();
         let new_f = a.new(&a.deref_short(&f));
         to_do.push((new_f, 0));
 
@@ -486,12 +549,12 @@ impl<A: Allocator> Executor<A> {
         }
     }
 
-    pub fn step(mut self, a: &A) -> (Self, bool) {
+    pub fn step<'a>(mut self, a: &'a A) -> (Self, bool) {
         match a.deref_short(&a.to_short(&self.current)) {
             Program::InternalReplaced(_) => panic!("This should never happen!"),
             Program::Lambda(p) => {
                 if let Some(app) = self.app_stack.pop() {
-                    self.current = a.to_long(&Executor::replace(a, p, a.to_short(&app)));
+                    self.current = a.to_long(&self.replace::<'a>(a, p, a.to_short(&app)));
                     (self, true)
                 } else {
                     if let Some((previous_current, previous_app)) = self.previous.pop() {
@@ -500,7 +563,7 @@ impl<A: Allocator> Executor<A> {
                         self.current = previous_current;
                         (self, true)
                     } else {
-                        self.current = a.to_long(&Executor::replace(
+                        self.current = a.to_long(&self.replace(
                             a,
                             p,
                             a.new(&Program::GlobalVar(self.lambdas as u32)),
