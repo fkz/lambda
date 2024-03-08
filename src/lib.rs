@@ -106,12 +106,8 @@ pub fn execute(
                     break;
                 }
                 step += 1;
-                if step % 65536 == 0 {
-                    //a.collect_garbage(true);
-                }
             }
             *step_count = step;
-            a.collect_garbage(true);
             gc_mem::to_mem_rep(a, a.deref_short(&executor.to_program(a))).to_opcode()
         } else {
             let mut executor = memory_representation::Executor::new(instr);
