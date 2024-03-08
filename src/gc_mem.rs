@@ -474,7 +474,9 @@ impl<A: Allocator> Executor<A> {
 
         while let Some(next) = to_do.pop() {
             let mut deref = a.deref_short(&next);
-            if let Some(b1) = deref.box1() {
+            if let Program::Reference(_) = deref {
+                // Do nothing
+            } else if let Some(b1) = deref.box1() {
                 let n = a.new(&a.deref_short(b1));
                 to_do.push(n);
                 deref.set_box1(n);
