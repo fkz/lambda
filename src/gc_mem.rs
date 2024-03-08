@@ -89,7 +89,7 @@ pub trait Allocator: Sized {
 
     fn remove_long(long: &mut Self::LongBox);
 
-    fn collect_garbage(&mut self, print_info: bool);
+    fn collect_garbage(&mut self, force: bool, print_info: bool);
 
     type KeepVec<T>: for<'a> KeepVecTrait<T, ShortBox<'a> = Self::ShortBox<'a>>;
 }
@@ -199,6 +199,7 @@ pub mod alloc_impl {
         other: RefCell<Vec<super::Program<InternalBox>>>,
         roots: RefCell<Vec<InternalBox>>,
         free_roots: RefCell<Vec<u32>>,
+        last_life_count: u32
     }
 
     impl Allocator {
@@ -328,7 +329,12 @@ pub mod alloc_impl {
             )
         }
 
-        fn collect_garbage(&mut self, print_info: bool) {
+        fn collect_garbage(&mut self, force: bool, print_info: bool) {
+            // Check if we should do garbage collection at all
+            if !force && self.memory.get_mut().len() < self.last_life_count as usize * 8 {
+                return;
+            }
+
             let mut other = self.other.get_mut();
             other.clear();
             other.reserve_exact(4096);
@@ -378,9 +384,12 @@ pub mod alloc_impl {
                 finished_work += 1;
             }
 
+            self.last_life_count = self.other.get_mut().len() as u32;
+
             if print_info {
                 println!(
-                    "After garbage collection, keeping {} from {} boxes; out of {} roots",
+                    "After garbage collection, keeping {:2}% ({} from {} boxes); out of {} roots",
+                    self.other.get_mut().len() * 100 / self.memory.get_mut().len(),
                     self.other.get_mut().len(),
                     self.memory.get_mut().len(),
                     root_count
@@ -395,6 +404,7 @@ pub mod alloc_impl {
         other: RefCell::new(Vec::new()),
         roots: RefCell::new(Vec::new()),
         free_roots: RefCell::new(Vec::new()),
+        last_life_count: 0
     };
     static mut CAPTURED: bool = false;
 
@@ -423,7 +433,7 @@ fn test() {
         let b = alloc.to_long(&a);
     }
 
-    alloc.collect_garbage(true);
+    alloc.collect_garbage(true, true);
 
     //let f = Program::Lambda(alloc.to_short(&b));
     //alloc.new(&f);

@@ -29,7 +29,7 @@ fn do_benchmark<W: Measurement>(
     c.bench_with_input(id, &program, |b, p| {
         let mut step_count = 0;
         b.iter(|| {
-            alloc.collect_garbage(false);
+            alloc.collect_garbage(true, false);
             execute(
                 black_box(p.clone()),
                 false,
