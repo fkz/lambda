@@ -164,7 +164,7 @@ pub fn execute(
                     panic!("Not implemented");
                 }
                 if show_steps {
-                    println!("Step: {}", "TODO");
+                    println!("Step: {}", executor.show());
                 };
                 let cont = executor.step();
                 if !cont {
