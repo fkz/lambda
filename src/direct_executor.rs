@@ -116,7 +116,7 @@ impl Executor {
             self.stack[0]
         } else {
             let h = self.add_heap(self.stack[0]);
-            let mut result = Program::Lambda(self.global_var_to_free(h));
+            let mut result = Program::Lambda(self.global_var_to_free(h, self.lambdas as u32));
             for _ in 1..self.lambdas {
                 result = Program::Lambda(self.add_heap(result));
             }
@@ -184,13 +184,13 @@ impl Executor {
         result
     }
 
-    fn global_var_to_free(&mut self, p: HeapReference) -> HeapReference {
+    fn global_var_to_free(&mut self, p: HeapReference, count: u32) -> HeapReference {
         let new_p = self.add_heap(self.from_heap(p));
         let mut to_replace = vec![(0, new_p)];
 
         while let Some((i, p)) = to_replace.pop() {
             match self.from_heap(p) {
-                Program::GlobalVar(j) => self.heap[p.id as usize] = Program::Var(j + i),
+                Program::GlobalVar(j) => self.heap[p.id as usize] = Program::Var(count - j - 1 + i),
                 Program::Reference(p) => {
                     let r = self.add_heap(self.from_heap(p));
                     to_replace.push((i, r));
@@ -201,8 +201,8 @@ impl Executor {
                     to_replace.push((i + 1, r));
                     self.heap[p.id as usize] = Program::Lambda(r);
                 }
-                Program::App(p) => {
-                    let (p1, p2) = self.from_heap2(p);
+                Program::App(pp) => {
+                    let (p1, p2) = self.from_heap2(pp);
                     let r = self.add_heap2(p1, p2);
                     to_replace.push((i, r.first()));
                     to_replace.push((i, r.second()));
