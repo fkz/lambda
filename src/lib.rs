@@ -1,4 +1,5 @@
 mod compare;
+mod direct_executor;
 pub mod example_interact_programs;
 mod example_programs;
 pub mod gc_mem;
@@ -67,14 +68,56 @@ pub fn execute_interactive<
     interact::interact(env, &program, by_value, show_steps);
 }
 
+#[derive(Clone, Copy)]
+pub enum ExecutionModel {
+    Default,
+    ByValue,
+    NewByValue,
+    NewGcByValue,
+    DirectByValue,
+}
+
+impl ExecutionModel {
+    fn is_new(self) -> bool {
+        match self {
+            ExecutionModel::NewByValue
+            | ExecutionModel::NewGcByValue
+            | ExecutionModel::DirectByValue => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_by_value(self) -> bool {
+        match self {
+            ExecutionModel::ByValue
+            | ExecutionModel::NewByValue
+            | ExecutionModel::NewGcByValue
+            | ExecutionModel::DirectByValue => true,
+            _ => false,
+        }
+    }
+
+    pub fn with_by_value(self) -> ExecutionModel {
+        match self {
+            ExecutionModel::Default => ExecutionModel::ByValue,
+            _ => self,
+        }
+    }
+
+    pub fn with_new(self) -> ExecutionModel {
+        match self {
+            ExecutionModel::Default | ExecutionModel::ByValue => ExecutionModel::NewByValue,
+            _ => self,
+        }
+    }
+}
+
 pub fn execute(
     program: Program,
     show_steps: bool,
     show_program: bool,
     show_hex: bool,
-    by_value: bool,
-    new: bool,
-    new_gc: bool,
+    execution_model: ExecutionModel,
     step_count: &mut u64,
     gc_mem_alloc: Option<&mut gc_mem::alloc_impl::Allocator>,
 ) -> Program {
@@ -84,17 +127,17 @@ pub fn execute(
         println!("Input: {}", show(&program));
     }
 
-    let simplified = if new {
+    let simplified = if execution_model.is_new() {
         let instr = memory_representation::parse_program(&program).unwrap();
 
-        if new_gc {
+        if let ExecutionModel::NewGcByValue = execution_model {
             let a = gc_mem_alloc.unwrap_or_else(|| gc_mem::alloc_impl::get_allocator());
             let mut executor = gc_mem::Executor::<gc_mem::alloc_impl::Allocator>::new(
                 a.to_long(&a.new(&gc_mem::from_mem_rep(a, &instr))),
             );
             let mut step = 0;
             loop {
-                if !by_value {
+                if !execution_model.is_by_value() {
                     panic!("Not implemented");
                 }
                 if show_steps {
@@ -106,15 +149,36 @@ pub fn execute(
                     break;
                 }
                 step += 1;
-                a.collect_garbage(false, false);
+                a.collect_garbage(false, true);
             }
             *step_count = step;
-            gc_mem::to_mem_rep(a, a.deref_short(&executor.to_program(a))).to_opcode()
+            let result = gc_mem::to_mem_rep(a, a.deref_short(&executor.to_program(a))).to_opcode();
+            a.collect_garbage(true, true);
+            result
+        } else if let ExecutionModel::DirectByValue = execution_model {
+            let mut executor = direct_executor::from_rep(instr);
+
+            let mut step = 0;
+            loop {
+                if !execution_model.is_by_value() {
+                    panic!("Not implemented");
+                }
+                if show_steps {
+                    println!("Step: {}", "TODO");
+                };
+                let cont = executor.step();
+                if !cont {
+                    break;
+                }
+                step += 1;
+            }
+            *step_count = step;
+            direct_executor::to_rep(executor).to_opcode()
         } else {
             let mut executor = memory_representation::Executor::new(instr);
             let mut step = 0;
             loop {
-                if !by_value {
+                if !execution_model.is_by_value() {
                     panic!("Not implemented");
                 }
                 if show_steps {
@@ -131,7 +195,12 @@ pub fn execute(
             executor.to_program().to_opcode()
         }
     } else {
-        simplify_generic(program, show_steps, by_value, step_count)
+        simplify_generic(
+            program,
+            show_steps,
+            execution_model.is_by_value(),
+            step_count,
+        )
     };
     if show_program {
         println!("Simplified: {}", show(&simplified));

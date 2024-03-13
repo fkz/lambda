@@ -199,7 +199,7 @@ pub mod alloc_impl {
         other: RefCell<Vec<super::Program<InternalBox>>>,
         roots: RefCell<Vec<InternalBox>>,
         free_roots: RefCell<Vec<u32>>,
-        last_life_count: u32
+        last_life_count: u32,
     }
 
     impl Allocator {
@@ -404,7 +404,7 @@ pub mod alloc_impl {
         other: RefCell::new(Vec::new()),
         roots: RefCell::new(Vec::new()),
         free_roots: RefCell::new(Vec::new()),
-        last_life_count: 0
+        last_life_count: 0,
     };
     static mut CAPTURED: bool = false;
 

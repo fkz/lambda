@@ -1,4 +1,5 @@
 use lambda_calculus as lib;
+use lib::ExecutionModel;
 
 fn main() {
     let mut show_steps = false;
@@ -6,9 +7,7 @@ fn main() {
     let mut interactive = None;
     let mut prettify = lib::pretty::nothing();
     let mut show_hex = false;
-    let mut by_value = false;
-    let mut new = false;
-    let mut new_gc = false;
+    let mut execution_model = lib::ExecutionModel::Default;
     let mut show_step_count = true;
 
     let mut arg_iterator = std::env::args();
@@ -28,12 +27,10 @@ fn main() {
             }
             "--show-program" => show_program = true,
             "--show-hex" => show_hex = true,
-            "--by-value" => by_value = true,
-            "--new" => new = true,
-            "--new-gc" => {
-                new = true;
-                new_gc = true
-            }
+            "--by-value" => execution_model = execution_model.with_by_value(),
+            "--new" => execution_model = execution_model.with_new(),
+            "--new-gc" => execution_model = ExecutionModel::NewGcByValue,
+            "--direct" => execution_model = ExecutionModel::DirectByValue,
             "--no-show-step-count" => show_step_count = false,
             other => panic!("Unknown flag {}", other),
         }
@@ -42,7 +39,7 @@ fn main() {
     let program = lib::parse_arguments(&path, &prettify, arg_iterator.collect());
 
     if let Some(mut env) = interactive {
-        lib::execute_interactive(&mut env, program, show_steps, by_value)
+        lib::execute_interactive(&mut env, program, show_steps, execution_model.is_by_value())
     } else {
         let mut step_count = 0;
         let result = lib::execute(
@@ -50,9 +47,7 @@ fn main() {
             show_steps,
             show_program,
             show_hex,
-            by_value,
-            new,
-            new_gc,
+            execution_model,
             &mut step_count,
             None,
         );

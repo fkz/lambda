@@ -18,9 +18,7 @@ fn do_benchmark<W: Measurement>(
         false,
         false,
         false,
-        true,
-        true,
-        true,
+        lambda_calculus::ExecutionModel::NewGcByValue,
         &mut steps,
         Some(alloc),
     );
@@ -35,9 +33,7 @@ fn do_benchmark<W: Measurement>(
                 false,
                 false,
                 false,
-                true,
-                true,
-                true,
+                lambda_calculus::ExecutionModel::NewGcByValue,
                 &mut step_count,
                 Some(alloc),
             )
