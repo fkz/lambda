@@ -109,6 +109,21 @@ impl Executor {
         self.lambdas = 0;
     }
 
+    fn program(&mut self) -> Program {
+        assert!(self.frames.is_empty());
+        assert_eq!(self.stack.len(), 1);
+        if self.lambdas == 0 {
+            self.stack[0]
+        } else {
+            let h = self.add_heap(self.stack[0]);
+            let mut result = Program::Lambda(self.global_var_to_free(h));
+            for _ in 1..self.lambdas {
+                result = Program::Lambda(self.add_heap(result));
+            }
+            result
+        }
+    }
+
     fn from_heap(&self, p: HeapReference) -> Program {
         self.heap[p.id as usize]
     }
@@ -117,7 +132,7 @@ impl Executor {
         (self.heap[p.id as usize], self.heap[p.id as usize + 1])
     }
 
-    fn replace(&mut self, p: Program, a: Program, follow_reference: bool) -> Program {
+    fn replace(&mut self, p: Program, a: Program) -> Program {
         let mut to_replace = Vec::new();
         let aref = Program::Reference(self.add_heap(a));
 
@@ -135,14 +150,7 @@ impl Executor {
                     to_replace.push((r.second(), 0));
                     Program::App(r)
                 }
-                r @ Program::Reference(inner) => {
-                    if follow_reference {
-                        let i = self.from_heap(inner);
-                        self.replace(i, a, true)
-                    } else {
-                        r
-                    }
-                }
+                r @ Program::Reference(inner) => r,
                 r @ Program::GlobalVar(_) => r,
                 Program::Var(0) => aref,
                 r @ Program::Var(_) => r,
@@ -152,13 +160,7 @@ impl Executor {
         while let Some((next, var_index)) = to_replace.pop() {
             match self.from_heap(next) {
                 Program::GlobalVar(_) => (),
-                Program::Reference(p) => {
-                    if follow_reference {
-                        let r = self.add_heap(self.from_heap(p));
-                        to_replace.push((r, var_index));
-                        self.heap[next.id as usize] = Program::Reference(r);
-                    }
-                }
+                Program::Reference(p) => (),
                 Program::Var(var) => {
                     if var == var_index {
                         self.heap[next.id as usize] = aref;
@@ -182,24 +184,52 @@ impl Executor {
         result
     }
 
-    fn global_var_intro(&mut self) -> bool {
-      assert_eq!(self.stack.len(), 1);
-      assert!(self.frames.is_empty());
+    fn global_var_to_free(&mut self, p: HeapReference) -> HeapReference {
+        let new_p = self.add_heap(self.from_heap(p));
+        let mut to_replace = vec![(0, new_p)];
 
-      match self.stack[0] {
-        Program::Lambda(h) => {
-          let new_p = self.replace(
-            self.from_heap(h),
-            Program::GlobalVar(self.lambdas as u32),
-            true,
-          );
-          self.lambdas += 1;
-          self.stack[0] = new_p;
-          self.frames.push(0);
-          true
+        while let Some((i, p)) = to_replace.pop() {
+            match self.from_heap(p) {
+                Program::GlobalVar(j) => self.heap[p.id as usize] = Program::Var(j + i),
+                Program::Reference(p) => {
+                    let r = self.add_heap(self.from_heap(p));
+                    to_replace.push((i, r));
+                    self.heap[p.id as usize] = Program::Reference(r);
+                }
+                Program::Lambda(p) => {
+                    let r = self.add_heap(self.from_heap(p));
+                    to_replace.push((i + 1, r));
+                    self.heap[p.id as usize] = Program::Lambda(r);
+                }
+                Program::App(p) => {
+                    let (p1, p2) = self.from_heap2(p);
+                    let r = self.add_heap2(p1, p2);
+                    to_replace.push((i, r.first()));
+                    to_replace.push((i, r.second()));
+                    self.heap[p.id as usize] = Program::App(r);
+                }
+                Program::Var(_) => (),
+            }
         }
-        _ => false
-      }
+
+        new_p
+    }
+
+    fn global_var_intro(&mut self) -> bool {
+        assert_eq!(self.stack.len(), 1);
+        assert!(self.frames.is_empty());
+
+        match self.stack[0] {
+            Program::Lambda(h) => {
+                let new_p =
+                    self.replace(self.from_heap(h), Program::GlobalVar(self.lambdas as u32));
+                self.lambdas += 1;
+                self.stack[0] = new_p;
+                self.frames.push(0);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn step(&mut self) -> bool {
@@ -223,7 +253,7 @@ impl Executor {
             Program::Lambda(p) => {
                 if current_index < self.stack.len() - 1 {
                     let a = self.stack.pop().unwrap();
-                    let new_p = self.replace(self.from_heap(p), a, false);
+                    let new_p = self.replace(self.from_heap(p), a);
                     self.stack[current_index] = new_p;
                     true
                 } else {
@@ -248,22 +278,22 @@ impl Executor {
     }
 
     pub fn show(&self) -> String {
-      let mut result = String::new();
-      if self.lambdas > 0 {
-        result += format!("({})=>", self.lambdas).as_str();
-      }
-      let mut frame_iter = self.frames.iter();
-      let mut next_frame = frame_iter.next();
-      for (i, p) in self.stack.iter().enumerate() {
-        if Some(&(i as u32)) == next_frame {
-          result += "|";
-          next_frame = frame_iter.next();
-        } else {
-          result += "<";
+        let mut result = String::new();
+        if self.lambdas > 0 {
+            result += format!("({})=>", self.lambdas).as_str();
         }
-        result += super::program::show(&self.to_mem_rep(*p).to_opcode()).as_str();
-      }
-      result
+        let mut frame_iter = self.frames.iter();
+        let mut next_frame = frame_iter.next();
+        for (i, p) in self.stack.iter().enumerate() {
+            if Some(&(i as u32)) == next_frame {
+                result += "|";
+                next_frame = frame_iter.next();
+            } else {
+                result += "<";
+            }
+            result += super::program::show(&self.to_mem_rep(*p).to_opcode()).as_str();
+        }
+        result
     }
 }
 
@@ -274,9 +304,7 @@ pub fn from_rep(program: super::memory_representation::Program) -> Executor {
     result
 }
 
-pub fn to_rep(executor: Executor) -> super::memory_representation::Program {
-    assert!(executor.frames.is_empty());
-    assert_eq!(executor.stack.len(), 1);
-    let result = executor.to_mem_rep(executor.stack[0]);
-    
+pub fn to_rep(mut executor: Executor) -> super::memory_representation::Program {
+    let p = executor.program();
+    executor.to_mem_rep(p)
 }
