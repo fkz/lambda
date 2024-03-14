@@ -30,11 +30,33 @@ enum Program {
     Reference(HeapReference),
 }
 
+struct SharedVec<T> {
+    vec: Option<Vec<T>>,
+}
+
+impl<T> SharedVec<T> {
+    pub fn new() -> Self {
+        Self {
+            vec: Some(Vec::new()),
+        }
+    }
+
+    pub fn get(&mut self) -> Vec<T> {
+        self.vec.take().unwrap()
+    }
+
+    pub fn set(&mut self, vec: Vec<T>) {
+        let old_vec = std::mem::replace(&mut self.vec, Some(vec));
+        assert!(old_vec.is_none());
+    }
+}
+
 pub struct Executor {
     heap: Vec<Program>,
     stack: Vec<Program>,
     frames: Vec<u32>,
     lambdas: u64,
+    to_replace: SharedVec<(HeapReference, u32)>,
 }
 
 impl Executor {
@@ -44,6 +66,7 @@ impl Executor {
             stack: Vec::new(),
             frames: Vec::new(),
             lambdas: 0,
+            to_replace: SharedVec::new(),
         }
     }
 
@@ -133,7 +156,7 @@ impl Executor {
     }
 
     fn replace(&mut self, p: Program, a: Program) -> Program {
-        let mut to_replace = Vec::new();
+        let mut to_replace = self.to_replace.get();
         let aref = Program::Reference(self.add_heap(a));
 
         let result = {
@@ -180,6 +203,8 @@ impl Executor {
                 }
             }
         }
+
+        self.to_replace.set(to_replace);
 
         result
     }
