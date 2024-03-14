@@ -62,14 +62,14 @@ fn b<W: Measurement>(c: &mut Criterion<W>) {
 
     for i in values.iter() {
         group.throughput(Throughput::Elements(2 * *i as u64));
-        benchmark_function(&mut group, "examples/add", vec![*i, *i]);//, alloc);
+        benchmark_function(&mut group, "examples/add", vec![*i, *i]); //, alloc);
     }
     group.finish();
 
     let mut group = c.benchmark_group("small-sub");
     for i in values.iter().take(5) {
         group.throughput(Throughput::Elements(3 * *i as u64));
-        benchmark_function(&mut group, "examples/sub", vec![*i * 2, *i]);//, alloc);
+        benchmark_function(&mut group, "examples/sub", vec![*i * 2, *i]); //, alloc);
     }
     group.finish();
 
@@ -90,7 +90,7 @@ fn b<W: Measurement>(c: &mut Criterion<W>) {
     group.sample_size(10);
     for i in values.iter().take(3) {
         group.throughput(Throughput::Elements(3 * *i as u64));
-        benchmark_function(&mut group, "examples/sub", vec![*i * 4, *i * 2]);//, alloc);
+        benchmark_function(&mut group, "examples/sub", vec![*i * 4, *i * 2]); //, alloc);
     }
     group.finish();
 }
