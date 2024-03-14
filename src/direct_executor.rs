@@ -30,6 +30,58 @@ enum Program {
     Reference(HeapReference),
 }
 
+#[derive(Clone, Copy)]
+enum ProgramFlag {
+    GlobalVar,
+    Var,
+    Lambda,
+    App,
+    Reference,
+}
+
+#[derive(Clone, Copy)]
+struct PackedProgram {
+    flag: ProgramFlag,
+    param: u32,
+}
+
+impl PackedProgram {
+    fn from(p: Program) -> Self {
+        match p {
+            Program::GlobalVar(id) => Self {
+                flag: ProgramFlag::GlobalVar,
+                param: id,
+            },
+            Program::Var(id) => Self {
+                flag: ProgramFlag::Var,
+                param: id,
+            },
+            Program::Lambda(h) => Self {
+                flag: ProgramFlag::Lambda,
+                param: h.id,
+            },
+            Program::App(h) => Self {
+                flag: ProgramFlag::App,
+                param: h.id,
+            },
+            Program::Reference(h) => Self {
+                flag: ProgramFlag::Reference,
+                param: h.id,
+            },
+        }
+    }
+
+    fn to(self) -> Program {
+        match self.flag {
+            ProgramFlag::GlobalVar => Program::GlobalVar(self.param),
+            ProgramFlag::Var => Program::Var(self.param),
+            ProgramFlag::Lambda => Program::Lambda(HeapReference { id: self.param }),
+            ProgramFlag::App => Program::App(Heap2Reference { id: self.param }),
+            ProgramFlag::Reference => Program::Reference(HeapReference { id: self.param }),
+        }
+    }
+}
+
 struct SharedVec<T> {
     vec: Option<Vec<T>>,
 }
@@ -52,7 +104,7 @@ impl<T> SharedVec<T> {
 }
 
 pub struct Executor {
-    heap: Vec<Program>,
+    heap: Vec<PackedProgram>,
     stack: Vec<Program>,
     frames: Vec<u32>,
     lambdas: u64,
@@ -74,7 +126,7 @@ impl Executor {
         let result = HeapReference {
             id: self.heap.len() as u32,
         };
-        self.heap.push(p);
+        self.heap.push(PackedProgram::from(p));
         result
     }
 
@@ -82,8 +134,8 @@ impl Executor {
         let result = Heap2Reference {
             id: self.heap.len() as u32,
         };
-        self.heap.push(p1);
-        self.heap.push(p2);
+        self.heap.push(PackedProgram::from(p1));
+        self.heap.push(PackedProgram::from(p2));
         result
     }
 
@@ -112,14 +164,14 @@ impl Executor {
             Program::GlobalVar(id) => super::memory_representation::Program::GlobalVar(id as u64),
             Program::Var(id) => super::memory_representation::Program::Var(id as u64),
             Program::Lambda(p) => super::memory_representation::Program::Lambda(Box::new(
-                self.to_mem_rep(self.heap[p.id as usize]),
+                self.to_mem_rep(self.heap[p.id as usize].to()),
             )),
             Program::App(p) => super::memory_representation::Program::App(Box::new((
-                self.to_mem_rep(self.heap[p.id as usize]),
-                self.to_mem_rep(self.heap[p.id as usize + 1]),
+                self.to_mem_rep(self.heap[p.id as usize].to()),
+                self.to_mem_rep(self.heap[p.id as usize + 1].to()),
             ))),
             Program::Reference(id) => super::memory_representation::Program::Reference(Rc::new(
-                self.to_mem_rep(self.heap[id.id as usize]),
+                self.to_mem_rep(self.heap[id.id as usize].to()),
             )),
         }
     }
@@ -148,11 +200,14 @@ impl Executor {
     }
 
     fn from_heap(&self, p: HeapReference) -> Program {
-        self.heap[p.id as usize]
+        self.heap[p.id as usize].to()
     }
 
     fn from_heap2(&self, p: Heap2Reference) -> (Program, Program) {
-        (self.heap[p.id as usize], self.heap[p.id as usize + 1])
+        (
+            self.heap[p.id as usize].to(),
+            self.heap[p.id as usize + 1].to(),
+        )
     }
 
     fn replace(&mut self, p: Program, a: Program) -> Program {
@@ -186,20 +241,20 @@ impl Executor {
                 Program::Reference(p) => (),
                 Program::Var(var) => {
                     if var == var_index {
-                        self.heap[next.id as usize] = aref;
+                        self.heap[next.id as usize] = PackedProgram::from(aref);
                     }
                 }
                 Program::Lambda(p) => {
                     let r = self.add_heap(self.from_heap(p));
                     to_replace.push((r, var_index + 1));
-                    self.heap[next.id as usize] = Program::Lambda(r);
+                    self.heap[next.id as usize] = PackedProgram::from(Program::Lambda(r));
                 }
                 Program::App(p) => {
                     let (p1, p2) = self.from_heap2(p);
                     let r = self.add_heap2(p1, p2);
                     to_replace.push((r.first(), var_index));
                     to_replace.push((r.second(), var_index));
-                    self.heap[next.id as usize] = Program::App(r);
+                    self.heap[next.id as usize] = PackedProgram::from(Program::App(r));
                 }
             }
         }
@@ -215,23 +270,25 @@ impl Executor {
 
         while let Some((i, p)) = to_replace.pop() {
             match self.from_heap(p) {
-                Program::GlobalVar(j) => self.heap[p.id as usize] = Program::Var(count - j - 1 + i),
+                Program::GlobalVar(j) => {
+                    self.heap[p.id as usize] = PackedProgram::from(Program::Var(count - j - 1 + i))
+                }
                 Program::Reference(p) => {
                     let r = self.add_heap(self.from_heap(p));
                     to_replace.push((i, r));
-                    self.heap[p.id as usize] = Program::Reference(r);
+                    self.heap[p.id as usize] = PackedProgram::from(Program::Reference(r));
                 }
                 Program::Lambda(p) => {
                     let r = self.add_heap(self.from_heap(p));
                     to_replace.push((i + 1, r));
-                    self.heap[p.id as usize] = Program::Lambda(r);
+                    self.heap[p.id as usize] = PackedProgram::from(Program::Lambda(r));
                 }
                 Program::App(pp) => {
                     let (p1, p2) = self.from_heap2(pp);
                     let r = self.add_heap2(p1, p2);
                     to_replace.push((i, r.first()));
                     to_replace.push((i, r.second()));
-                    self.heap[p.id as usize] = Program::App(r);
+                    self.heap[p.id as usize] = PackedProgram::from(Program::App(r));
                 }
                 Program::Var(_) => (),
             }
